@@ -96,10 +96,10 @@ interface XsdValidationResult {
   };
 }
 
-function currencyWarning(order: OrderRow) {
+function currencyWarning(order: OrderRow, translate: (key: string, values?: Record<string, unknown>) => string) {
   return order.currency === "PLN"
     ? ""
-    : `Dev mode: this ${order.currency} test order will be drafted as PLN for FA(3) XML.`;
+    : translate("orders.devCurrency", { currency: order.currency });
 }
 
 function useShop() {
@@ -111,7 +111,7 @@ function isInstallError(message: string) {
 }
 
 export function App() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const shop = useShop();
   const [view, setView] = useState<View>("orders");
   const [token, setToken] = useState("");
@@ -218,13 +218,13 @@ export function App() {
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error ?? "Could not load draft invoices.");
+        throw new Error(payload.error ?? t("invoices.openError"));
       }
 
       const result = (await response.json()) as { invoices: InvoiceRow[] };
       setInvoices(result.invoices);
     } catch (error) {
-      setInvoiceError(error instanceof Error ? error.message : "Could not load draft invoices.");
+      setInvoiceError(error instanceof Error ? error.message : t("invoices.openError"));
     } finally {
       setInvoicesLoading(false);
     }
@@ -240,12 +240,12 @@ export function App() {
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error ?? "Could not load billing.");
+        throw new Error(payload.error ?? t("billing.loadError"));
       }
 
       setBilling((await response.json()) as BillingSummary);
     } catch (error) {
-      setBillingError(error instanceof Error ? error.message : "Could not load billing.");
+      setBillingError(error instanceof Error ? error.message : t("billing.loadError"));
     } finally {
       setBillingLoading(false);
     }
@@ -364,7 +364,7 @@ export function App() {
       });
 
       if (!response.ok) {
-        const message = ((await response.json()) as { error?: string }).error ?? "Invoice generation failed";
+        const message = ((await response.json()) as { error?: string }).error ?? t("orders.generateError");
         throw new Error(message);
       }
 
@@ -408,7 +408,7 @@ export function App() {
         });
 
         if (!response.ok) {
-          const message = ((await response.json().catch(() => ({}))) as { error?: string }).error ?? "Invoice generation failed";
+          const message = ((await response.json().catch(() => ({}))) as { error?: string }).error ?? t("orders.generateError");
           throw new Error(`${order.name}: ${message}`);
         }
 
@@ -417,7 +417,7 @@ export function App() {
         created += 1;
       }
 
-      setLastInvoice(`${created} draft invoice${created === 1 ? "" : "s"} created.`);
+      setLastInvoice(t("orders.bulkCreated", { count: created }));
       void loadInvoices();
       void loadBilling();
       void loadReviewStatus();
@@ -437,13 +437,13 @@ export function App() {
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error ?? "Could not open invoice XML.");
+        throw new Error(payload.error ?? t("invoices.openError"));
       }
 
       const result = (await response.json()) as { invoice: InvoiceRow & { fa3Xml: string } };
       setXmlPreview({ title: `${invoice.orderName} FA(3) XML`, xml: result.invoice.fa3Xml });
     } catch (error) {
-      setInvoiceError(error instanceof Error ? error.message : "Could not open invoice XML.");
+      setInvoiceError(error instanceof Error ? error.message : t("invoices.openError"));
     }
   }
 
@@ -472,12 +472,12 @@ export function App() {
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error ?? "Could not validate invoice XML.");
+        throw new Error(payload.error ?? t("invoices.validateError"));
       }
 
       setXsdValidation((await response.json()) as XsdValidationResult);
     } catch (error) {
-      setInvoiceError(error instanceof Error ? error.message : "Could not validate invoice XML.");
+      setInvoiceError(error instanceof Error ? error.message : t("invoices.validateError"));
     } finally {
       setValidatingInvoiceId(null);
     }
@@ -485,7 +485,7 @@ export function App() {
 
   function openManagedPricing() {
     if (!billing?.managedPricingUrl) {
-      setBillingError("Managed Pricing is not available yet. Refresh billing and try again.");
+      setBillingError(t("billing.unavailable"));
       return;
     }
 
@@ -499,7 +499,7 @@ export function App() {
 
   const tabs = [
     { id: "orders", content: t("nav.orders") },
-    { id: "invoices", content: "Invoices" },
+    { id: "invoices", content: t("nav.invoices") },
     { id: "settings", content: t("nav.settings") },
     { id: "billing", content: t("nav.billing") }
   ];
@@ -511,6 +511,18 @@ export function App() {
     (order) => order.isB2b && !order.processed && order.buyerNip.replace(/\D/g, "").length === 10
   ).length;
   const limitReached = billing ? !billing.canGenerate : false;
+  const locale = i18n.language.startsWith("en") ? "en" : "pl";
+  const currentPlanName = billing ? t(`plans.${billing.plan}`, { defaultValue: billing.planName }) : "";
+  const languageOptions = [
+    { label: t("language.pl"), value: "pl" },
+    { label: t("language.en"), value: "en" }
+  ];
+  const planCards = [
+    ["free", t("plans.free"), "$0", t("billing.invoicesMonth", { count: 5 })],
+    ["basic", t("plans.basic"), "$9.99", t("billing.invoicesMonth", { count: 50 })],
+    ["pro", t("plans.pro"), "$19.99", t("billing.invoicesMonth", { count: 200 })],
+    ["unlimited", t("plans.unlimited"), "$39.99", t("billing.unlimitedInvoices")]
+  ];
 
   return (
     <>
@@ -532,6 +544,15 @@ export function App() {
                 <div className="hero-status">
                   <span className={connectionState === "connected" ? "status-dot connected" : "status-dot"} />
                   {connectionState === "connected" ? t("settings.connected") : t("settings.notConnected")}
+                </div>
+                <div className="language-switcher">
+                  <Select
+                    label={t("language.label")}
+                    labelHidden
+                    value={locale}
+                    options={languageOptions}
+                    onChange={(language) => void i18n.changeLanguage(language)}
+                  />
                 </div>
               </div>
 
@@ -557,19 +578,19 @@ export function App() {
                   <InlineStack align="space-between" blockAlign="center" gap="300">
                     <BlockStack gap="100">
                       <Text as="h2" variant="headingMd">
-                        Is KSeF Pilot helping?
+                        {t("review.title")}
                       </Text>
                       <Text as="p" tone="subdued">
-                        If it is saving time, a Shopify review would help us reach more merchants. If not, tell us before we ask publicly.
+                        {t("review.body")}
                       </Text>
                     </BlockStack>
                     <InlineStack gap="200">
                       {reviewStatus.reviewUrl ? (
                         <Button variant="primary" url={reviewStatus.reviewUrl} target="_blank" onClick={dismissReview}>
-                          Leave review
+                          {t("review.leave")}
                         </Button>
                       ) : null}
-                      <Button onClick={dismissReview}>Not now</Button>
+                      <Button onClick={dismissReview}>{t("review.later")}</Button>
                     </InlineStack>
                   </InlineStack>
                 </Card>
@@ -581,10 +602,10 @@ export function App() {
                     <InlineStack align="space-between" blockAlign="center">
                       <BlockStack gap="100">
                         <Text as="h2" variant="headingMd">
-                          Setup checklist
+                          {t("setup.title")}
                         </Text>
                         <Text as="p" tone="subdued">
-                          Keep the compliance path visible before live KSeF submission.
+                          {t("setup.description")}
                         </Text>
                       </BlockStack>
                       <Badge tone={setupStatus.complete ? "success" : "attention"}>
@@ -594,12 +615,14 @@ export function App() {
                     <div className="setup-grid">
                       {setupStatus.items.map((item) => (
                         <div className={item.done ? "setup-item done" : "setup-item"} key={item.id}>
-                          <span>{item.done ? "Done" : "Open"}</span>
+                          <span>{item.done ? t("common.done") : t("common.open")}</span>
                           <Text as="h3" variant="headingSm">
-                            {item.label}
+                            {t(`setup.${item.id}`, { defaultValue: item.label })}
                           </Text>
                           <Text as="p" tone="subdued">
-                            {item.detail}
+                            {t(`setupDetails.${item.id}.${item.done ? "done" : "open"}`, {
+                              defaultValue: item.detail
+                            })}
                           </Text>
                         </div>
                       ))}
@@ -618,15 +641,17 @@ export function App() {
                           : view === "orders"
                             ? t("orders.title")
                             : view === "invoices"
-                              ? "Draft invoices"
-                              : "Billing"}
+                              ? t("invoices.title")
+                              : t("billing.title")}
                       </Text>
                       <Text as="p" tone="subdued">
                         {view === "orders"
                           ? t("orders.description")
                           : view === "invoices"
-                            ? "Download XML one-by-one or export a weekly/monthly ZIP for accountant review."
-                            : t("home.description")}
+                            ? t("invoices.description")
+                            : view === "billing"
+                              ? t("billing.description")
+                              : t("home.description")}
                       </Text>
                     </BlockStack>
                     <Badge tone={connectionState === "connected" ? "success" : "attention"}>
@@ -721,13 +746,11 @@ export function App() {
                       {billing ? (
                         <Banner tone={limitReached ? "critical" : "info"}>
                           {billing.limit === null
-                            ? `${billing.planName} plan: unlimited invoices this month.`
-                            : `${billing.planName} plan: ${billing.used}/${billing.limit} invoices used this month.`}
+                            ? t("orders.billingUnlimited", { plan: currentPlanName })
+                            : t("orders.billingUsage", { plan: currentPlanName, used: billing.used, limit: billing.limit })}
                         </Banner>
                       ) : null}
-                      <Banner tone="info">
-                        Saved buyer NIPs are remembered by Shopify customer and used to prefill future B2B orders.
-                      </Banner>
+                      <Banner tone="info">{t("orders.rememberedNips")}</Banner>
                       {orderError ? (
                         <Banner tone="critical">
                           <BlockStack gap="200">
@@ -754,7 +777,7 @@ export function App() {
                             loading={bulkGenerating}
                             onClick={generateReadyDrafts}
                           >
-                            Generate ready drafts
+                            {t("orders.generateReady")}
                           </Button>
                           <Button onClick={loadOrders} loading={ordersLoading}>
                             {t("orders.refresh")}
@@ -788,7 +811,7 @@ export function App() {
                                   {order.processed ? <Badge tone="success">{order.invoiceStatus ?? "draft"}</Badge> : null}
                                 </InlineStack>
                                 <Text as="p" tone="subdued">
-                                  {new Date(order.createdAt).toLocaleDateString()} - {order.totalGross.toFixed(2)}{" "}
+                                  {new Date(order.createdAt).toLocaleDateString(locale)} - {order.totalGross.toFixed(2)}{" "}
                                   {order.currency}
                                 </Text>
                               </BlockStack>
@@ -814,12 +837,12 @@ export function App() {
                             </div>
                             {order.nipSource ? (
                               <Text as="p" tone="subdued">
-                                NIP source: {order.nipSource}
+                                {t("orders.nipSource", { source: order.nipSource })}
                               </Text>
                             ) : null}
-                            {currencyWarning(order) ? (
+                            {currencyWarning(order, t) ? (
                               <Text as="p" tone="subdued">
-                                {currencyWarning(order)}
+                                {currencyWarning(order, t)}
                               </Text>
                             ) : null}
                             <InlineStack gap="200">
@@ -848,17 +871,18 @@ export function App() {
 
                   {view === "invoices" ? (
                     <BlockStack gap="400">
-                      <Banner tone="info">
-                        Drafts are local FA(3) XML files. The ZIP includes XML, PDF previews, and a CSV manifest for accountant review before any KSeF submission flow is enabled.
-                      </Banner>
+                      <Banner tone="info">{t("invoices.safeTest")}</Banner>
                       {invoiceError ? <Banner tone="critical">{invoiceError}</Banner> : null}
                       {xsdValidation ? (
                         <Banner tone={xsdValidation.validation.valid ? "success" : "critical"}>
                           <BlockStack gap="200">
                             <Text as="p">
                               {xsdValidation.validation.valid
-                                ? `${xsdValidation.orderName} passed official FA(3) XSD validation.`
-                                : `${xsdValidation.orderName} failed official FA(3) XSD validation with ${xsdValidation.validation.issueCount} issue(s).`}
+                                ? t("invoices.validatePassed", { orderName: xsdValidation.orderName })
+                                : t("invoices.validateFailed", {
+                                    orderName: xsdValidation.orderName,
+                                    count: xsdValidation.validation.issueCount
+                                  })}
                             </Text>
                             {!xsdValidation.validation.valid ? (
                               <BlockStack gap="100">
@@ -880,37 +904,37 @@ export function App() {
                       <InlineStack align="space-between" blockAlign="end" gap="300">
                         <div className="period-select">
                           <Select
-                            label="Export period"
+                            label={t("invoices.exportPeriod")}
                             value={invoicePeriod}
                             onChange={(value) => setInvoicePeriod(value as InvoicePeriod)}
                             options={[
-                              { label: "This week", value: "week" },
-                              { label: "This month", value: "month" },
-                              { label: "All drafts", value: "all" }
+                              { label: t("invoices.thisWeek"), value: "week" },
+                              { label: t("invoices.thisMonth"), value: "month" },
+                              { label: t("invoices.allDrafts"), value: "all" }
                             ]}
                           />
                         </div>
                         <InlineStack gap="200">
                           <Button onClick={loadInvoices} loading={invoicesLoading}>
-                            Refresh
+                            {t("common.refresh")}
                           </Button>
                           <Button variant="primary" disabled={!invoices.length} onClick={downloadInvoiceZip}>
-                            Download ZIP
+                            {t("invoices.downloadZip")}
                           </Button>
                         </InlineStack>
                       </InlineStack>
                       {invoicesLoading ? (
                         <InlineStack align="center">
-                          <Spinner accessibilityLabel="Loading invoices" size="small" />
+                          <Spinner accessibilityLabel={t("invoices.loading")} size="small" />
                         </InlineStack>
                       ) : null}
                       {!invoicesLoading && invoices.length === 0 ? (
                         <div className="empty-state">
                           <Text as="h3" variant="headingMd">
-                            No draft invoices yet
+                            {t("invoices.emptyTitle")}
                           </Text>
                           <Text as="p" tone="subdued">
-                            Generate a draft from a B2B order, then come back here to inspect or export it.
+                            {t("invoices.empty")}
                           </Text>
                         </div>
                       ) : null}
@@ -931,18 +955,20 @@ export function App() {
                                   {invoice.buyerName} - NIP {invoice.nip} - {Number(invoice.totalGross).toFixed(2)} PLN
                                 </Text>
                                 <Text as="p" tone="subdued">
-                                  Created {new Date(invoice.createdAt).toLocaleString()} - {invoice.itemCount} line item
-                                  {invoice.itemCount === 1 ? "" : "s"}
+                                  {t("invoices.createdLine", {
+                                    date: new Date(invoice.createdAt).toLocaleString(locale),
+                                    count: invoice.itemCount
+                                  })}
                                 </Text>
                               </BlockStack>
                               <InlineStack gap="200">
                                 <Button loading={validatingInvoiceId === invoice.id} onClick={() => validateInvoice(invoice)}>
-                                  Validate FA(3)
+                                  {t("invoices.validate")}
                                 </Button>
-                                <Button onClick={() => previewInvoice(invoice)}>Preview XML</Button>
-                                <Button onClick={() => downloadInvoicePdf(invoice)}>Download PDF</Button>
+                                <Button onClick={() => previewInvoice(invoice)}>{t("invoices.previewXml")}</Button>
+                                <Button onClick={() => downloadInvoicePdf(invoice)}>{t("invoices.downloadPdf")}</Button>
                                 <Button variant="primary" onClick={() => downloadInvoice(invoice)}>
-                                  Download XML
+                                  {t("invoices.downloadXml")}
                                 </Button>
                               </InlineStack>
                             </InlineStack>
@@ -955,7 +981,7 @@ export function App() {
                             <Text as="h3" variant="headingMd">
                               {xmlPreview.title}
                             </Text>
-                            <Button onClick={() => setXmlPreview(null)}>Close preview</Button>
+                            <Button onClick={() => setXmlPreview(null)}>{t("common.closePreview")}</Button>
                           </InlineStack>
                           <pre>{xmlPreview.xml}</pre>
                         </div>
@@ -966,46 +992,41 @@ export function App() {
                   {view === "billing" ? (
                     <BlockStack gap="400">
                       {billingError ? <Banner tone="critical">{billingError}</Banner> : null}
-                      <Banner tone="info">
-                        Shopify handles plan changes and payment approval on the Managed Pricing page. KSeF Pilot only reads the active plan and usage limits.
-                      </Banner>
+                      <Banner tone="info">{t("billing.managed")}</Banner>
                       {billing ? (
                         <div className="billing-summary">
                           <BlockStack gap="100">
                             <Text as="h3" variant="headingMd">
-                              {billing.planName} plan
+                              {currentPlanName}
                             </Text>
                             <Text as="p" tone="subdued">
-                              Status: {billing.billingStatus}
+                              {t("common.status")}: {billing.billingStatus}
                             </Text>
                           </BlockStack>
                           <strong>
-                            {billing.limit === null ? `${billing.used} used / unlimited` : `${billing.used} / ${billing.limit} used`}
+                            {billing.limit === null
+                              ? t("billing.usedUnlimited", { used: billing.used })
+                              : t("billing.usedLimited", { used: billing.used, limit: billing.limit })}
                           </strong>
                           <Button variant="primary" onClick={openManagedPricing}>
-                            Manage pricing in Shopify
+                            {t("billing.manage")}
                           </Button>
                         </div>
                       ) : null}
                       {billingLoading ? (
                         <InlineStack align="center">
-                          <Spinner accessibilityLabel="Loading billing" size="small" />
+                          <Spinner accessibilityLabel={t("billing.loadError")} size="small" />
                         </InlineStack>
                       ) : null}
                       <div className="plan-grid">
-                        {[
-                          ["free", "Free", "$0", "5 invoices/month"],
-                          ["basic", "Basic", "$9.99", "50 invoices/month"],
-                          ["pro", "Pro", "$19.99", "200 invoices/month"],
-                          ["unlimited", "Unlimited", "$39.99", "Unlimited invoices"]
-                        ].map(([handle, name, price, limit]) => (
+                        {planCards.map(([handle, name, price, limit]) => (
                           <div className="plan-card" key={handle}>
                             <BlockStack gap="300">
                               <InlineStack align="space-between" blockAlign="center">
                                 <Text as="h3" variant="headingMd">
                                   {name}
                                 </Text>
-                                {billing?.plan === handle ? <Badge tone="success">Current</Badge> : null}
+                                {billing?.plan === handle ? <Badge tone="success">{t("common.current")}</Badge> : null}
                               </InlineStack>
                               <Text as="p" variant="headingLg">
                                 {price}
@@ -1019,7 +1040,7 @@ export function App() {
                                 loading={billingLoading}
                                 onClick={openManagedPricing}
                               >
-                                {billing?.plan === handle ? "Current in Shopify" : "Manage in Shopify"}
+                                {billing?.plan === handle ? t("billing.currentInShopify") : t("billing.manageInShopify")}
                               </Button>
                             </BlockStack>
                           </div>
