@@ -16,9 +16,17 @@ const app = express();
 
 app.use(
   helmet({
-    contentSecurityPolicy: false
+    contentSecurityPolicy: false,
+    frameguard: false
   })
 );
+app.use((_req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    "frame-ancestors https://admin.shopify.com https://*.myshopify.com;"
+  );
+  next();
+});
 app.use(cors({ origin: env.NODE_ENV === "development" ? true : env.APP_URL, credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: "1mb" }));
