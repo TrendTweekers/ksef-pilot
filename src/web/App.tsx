@@ -36,6 +36,7 @@ interface OrderRow {
   totalGross: number;
   buyerName: string;
   buyerNip: string;
+  nipSource?: string;
   isB2b: boolean;
   processed: boolean;
   invoiceStatus?: string;
@@ -522,6 +523,9 @@ export function App() {
                   {view === "orders" ? (
                     <BlockStack gap="400">
                       <Banner tone="info">{t("orders.safeTest")}</Banner>
+                      <Banner tone="info">
+                        Saved buyer NIPs are remembered by Shopify customer and used to prefill future B2B orders.
+                      </Banner>
                       {orderError ? (
                         <Banner tone="critical">
                           <BlockStack gap="200">
@@ -606,6 +610,11 @@ export function App() {
                                 autoComplete="organization"
                               />
                             </div>
+                            {order.nipSource ? (
+                              <Text as="p" tone="subdued">
+                                NIP source: {order.nipSource}
+                              </Text>
+                            ) : null}
                             {currencyWarning(order) ? (
                               <Text as="p" tone="subdued">
                                 {currencyWarning(order)}
@@ -633,7 +642,7 @@ export function App() {
                   {view === "invoices" ? (
                     <BlockStack gap="400">
                       <Banner tone="info">
-                        Drafts are local FA(3) XML files. Use this for weekly or monthly accountant review before any KSeF submission flow is enabled.
+                        Drafts are local FA(3) XML files. The ZIP includes XML files plus a CSV manifest for accountant review before any KSeF submission flow is enabled.
                       </Banner>
                       {invoiceError ? <Banner tone="critical">{invoiceError}</Banner> : null}
                       <InlineStack align="space-between" blockAlign="end" gap="300">

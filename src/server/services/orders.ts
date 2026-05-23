@@ -38,6 +38,7 @@ interface ShopifyOrderNode {
   currencyCode: string;
   currentTotalPriceSet: { shopMoney: Money };
   customer?: {
+    id: string;
     displayName?: string | null;
     defaultAddress?: Address | null;
     nip1?: { value: string } | null;
@@ -65,6 +66,7 @@ export interface OrderListItem {
   totalGross: number;
   buyerName: string;
   buyerNip: string;
+  nipSource?: string;
   isB2b: boolean;
   processed: boolean;
   invoiceStatus?: string;
@@ -83,6 +85,7 @@ const orderFields = `
     }
   }
   customer {
+    id
     displayName
     defaultAddress {
       address1
@@ -134,6 +137,10 @@ function customerNip(customer: ShopifyOrderNode["customer"]) {
   return normalizeNip(customer?.nip1?.value ?? customer?.nip2?.value ?? customer?.nip3?.value);
 }
 
+function customerId(order: ShopifyOrderNode) {
+  return order.customer?.id ?? null;
+}
+
 function orderBuyer(order: ShopifyOrderNode) {
   const customer = order.customer ?? null;
 
@@ -144,10 +151,24 @@ function orderBuyer(order: ShopifyOrderNode) {
   };
 }
 
-function toOrderListItem(order: ShopifyOrderNode, flags: Map<string, Awaited<ReturnType<typeof prisma.orderFlag.findMany>>[number]>, invoices: Map<string, Awaited<ReturnType<typeof prisma.ksefInvoice.findMany>>[number]>): OrderListItem {
+function toOrderListItem(
+  order: ShopifyOrderNode,
+  flags: Map<string, Awaited<ReturnType<typeof prisma.orderFlag.findMany>>[number]>,
+  invoices: Map<string, Awaited<ReturnType<typeof prisma.ksefInvoice.findMany>>[number]>,
+  buyerProfiles: Map<string, Awaited<ReturnType<typeof prisma.customerBuyerProfile.findMany>>[number]>
+): OrderListItem {
   const buyer = orderBuyer(order);
   const flag = flags.get(order.id);
   const invoice = invoices.get(order.id);
+  const profile = order.customer?.id ? buyerProfiles.get(order.customer.id) : undefined;
+  const buyerNip = flag?.nip || buyer.nip || profile?.nip || "";
+  const nipSource = flag?.nip
+    ? "saved on order"
+    : buyer.nip
+      ? "customer metafield"
+      : profile?.nip
+        ? "remembered customer"
+        : undefined;
 
   return {
     id: order.id,
@@ -155,9 +176,10 @@ function toOrderListItem(order: ShopifyOrderNode, flags: Map<string, Awaited<Ret
     createdAt: order.createdAt,
     currency: order.currencyCode,
     totalGross: toNumber(order.currentTotalPriceSet.shopMoney.amount),
-    buyerName: flag?.buyerName ?? buyer.name,
-    buyerNip: flag?.nip ?? buyer.nip,
-    isB2b: flag?.isB2b ?? Boolean(buyer.nip),
+    buyerName: flag?.buyerName ?? profile?.buyerName ?? buyer.name,
+    buyerNip,
+    nipSource,
+    isB2b: flag?.isB2b ?? Boolean(buyerNip),
     processed: Boolean(flag?.processedAt ?? invoice),
     invoiceStatus: invoice?.status,
     ksefNumber: invoice?.ksefNumber ?? undefined
@@ -178,17 +200,20 @@ export async function fetchShopifyOrders(shop: Shop, onlyUnprocessedB2b: boolean
   );
 
   const orderIds = data.orders.nodes.map((order) => order.id);
-  const [flags, invoices] = await Promise.all([
+  const customerIds = data.orders.nodes.map(customerId).filter((id): id is string => Boolean(id));
+  const [flags, invoices, buyerProfiles] = await Promise.all([
     prisma.orderFlag.findMany({ where: { shopId: shop.id, orderId: { in: orderIds } } }),
     prisma.ksefInvoice.findMany({
       where: { shopId: shop.id, orderId: { in: orderIds } },
       orderBy: { createdAt: "desc" }
-    })
+    }),
+    prisma.customerBuyerProfile.findMany({ where: { shopId: shop.id, customerId: { in: customerIds } } })
   ]);
 
   const flagMap = new Map(flags.map((flag) => [flag.orderId, flag]));
   const invoiceMap = new Map(invoices.map((invoice) => [invoice.orderId, invoice]));
-  const orders = data.orders.nodes.map((order) => toOrderListItem(order, flagMap, invoiceMap));
+  const buyerProfileMap = new Map(buyerProfiles.map((profile) => [profile.customerId, profile]));
+  const orders = data.orders.nodes.map((order) => toOrderListItem(order, flagMap, invoiceMap, buyerProfileMap));
 
   return onlyUnprocessedB2b ? orders.filter((order) => order.isB2b && !order.processed) : orders;
 }
@@ -267,7 +292,7 @@ function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyer
 }
 
 export async function saveOrderFlag(shop: Shop, input: { orderId: string; orderName: string; isB2b: boolean; nip?: string; buyerName?: string }) {
-  return prisma.orderFlag.upsert({
+  const flag = await prisma.orderFlag.upsert({
     where: { shopId_orderId: { shopId: shop.id, orderId: input.orderId } },
     create: {
       shopId: shop.id,
@@ -282,6 +307,39 @@ export async function saveOrderFlag(shop: Shop, input: { orderId: string; orderN
       isB2b: input.isB2b,
       nip: normalizeNip(input.nip),
       buyerName: input.buyerName
+    }
+  });
+
+  if (input.isB2b && normalizeNip(input.nip)) {
+    const order = await fetchShopifyOrder(shop, input.orderId);
+    await rememberBuyerProfile(shop, order, normalizeNip(input.nip), input.buyerName, "manual");
+  }
+
+  return flag;
+}
+
+async function rememberBuyerProfile(
+  shop: Shop,
+  order: ShopifyOrderNode,
+  nip: string,
+  buyerName: string | undefined,
+  source: "manual" | "invoice"
+) {
+  if (!order.customer?.id || !nip) return;
+
+  await prisma.customerBuyerProfile.upsert({
+    where: { shopId_customerId: { shopId: shop.id, customerId: order.customer.id } },
+    create: {
+      shopId: shop.id,
+      customerId: order.customer.id,
+      nip,
+      buyerName: buyerName?.trim() || orderBuyer(order).name,
+      source
+    },
+    update: {
+      nip,
+      buyerName: buyerName?.trim() || orderBuyer(order).name,
+      source
     }
   });
 }
@@ -353,6 +411,8 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
       processedAt: new Date()
     }
   });
+
+  await rememberBuyerProfile(shop, order, buyerNip, buyerName, "invoice");
 
   return { invoice, reused: false };
 }

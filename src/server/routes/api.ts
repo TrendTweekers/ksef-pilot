@@ -85,6 +85,42 @@ function invoiceFileName(orderName: string, invoiceId: string) {
   return `${safeOrderName}-${invoiceId.slice(0, 8)}.xml`;
 }
 
+function csvCell(value: unknown) {
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function invoiceManifestRows(invoices: Array<{
+  id: string;
+  orderName: string;
+  buyerName: string;
+  nip: string;
+  status: string;
+  ksefNumber: string | null;
+  totalGross: { toString(): string };
+  createdAt: Date;
+}>) {
+  return invoices.map((invoice) => ({
+    order: invoice.orderName,
+    buyer: invoice.buyerName,
+    nip: invoice.nip,
+    gross_pln: invoice.totalGross.toString(),
+    status: invoice.status,
+    ksef_number: invoice.ksefNumber ?? "",
+    created_at: invoice.createdAt.toISOString(),
+    xml_file: invoiceFileName(invoice.orderName, invoice.id)
+  }));
+}
+
+function invoiceManifestCsv(invoices: Parameters<typeof invoiceManifestRows>[0]) {
+  const rows = invoiceManifestRows(invoices);
+  const headers = ["order", "buyer", "nip", "gross_pln", "status", "ksef_number", "created_at", "xml_file"];
+  return [
+    headers.map(csvCell).join(","),
+    ...rows.map((row) => headers.map((header) => csvCell(row[header as keyof typeof row])).join(","))
+  ].join("\n");
+}
+
 apiRouter.get("/health", (_req, res) => {
   res.json({
     ok: true,
@@ -308,22 +344,14 @@ apiRouter.get("/invoices/export.zip", loadShop, async (req, res, next) => {
     });
 
     const zip = new JSZip();
-    const manifest = invoices.map((invoice) => ({
-      id: invoice.id,
-      orderName: invoice.orderName,
-      buyerName: invoice.buyerName,
-      nip: invoice.nip,
-      status: invoice.status,
-      totalGross: invoice.totalGross.toString(),
-      createdAt: invoice.createdAt.toISOString(),
-      file: invoiceFileName(invoice.orderName, invoice.id)
-    }));
+    const manifest = invoiceManifestRows(invoices);
 
     for (const invoice of invoices) {
       zip.file(invoiceFileName(invoice.orderName, invoice.id), invoice.fa3Xml);
     }
 
     zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+    zip.file("manifest.csv", invoiceManifestCsv(invoices));
 
     const content = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
     const stamp = new Date().toISOString().slice(0, 10);
