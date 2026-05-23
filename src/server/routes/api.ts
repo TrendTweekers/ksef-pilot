@@ -184,6 +184,11 @@ apiRouter.get("/orders", loadShop, async (req, res, next) => {
 
     res.json({ orders });
   } catch (error) {
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
     next(error);
   }
 });

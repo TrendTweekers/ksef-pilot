@@ -43,23 +43,6 @@ interface ShopifyOrderNode {
     nip2?: { value: string } | null;
     nip3?: { value: string } | null;
   } | null;
-  purchasingEntity?:
-    | {
-        company?: {
-          name?: string | null;
-        } | null;
-        contact?: {
-          customer?: {
-            displayName?: string | null;
-            defaultAddress?: Address | null;
-            nip1?: { value: string } | null;
-            nip2?: { value: string } | null;
-            nip3?: { value: string } | null;
-          } | null;
-        } | null;
-      }
-    | Record<string, never>
-    | null;
   lineItems: { nodes: ShopifyLineItemNode[] };
 }
 
@@ -111,28 +94,6 @@ const orderFields = `
     nip2: metafield(namespace: "${CUSTOMER_NIP_METAFIELDS[1].namespace}", key: "${CUSTOMER_NIP_METAFIELDS[1].key}") { value }
     nip3: metafield(namespace: "${CUSTOMER_NIP_METAFIELDS[2].namespace}", key: "${CUSTOMER_NIP_METAFIELDS[2].key}") { value }
   }
-  purchasingEntity {
-    ... on PurchasingCompany {
-      company {
-        name
-      }
-      contact {
-        customer {
-          displayName
-          defaultAddress {
-            address1
-            address2
-            city
-            zip
-            country
-          }
-          nip1: metafield(namespace: "${CUSTOMER_NIP_METAFIELDS[0].namespace}", key: "${CUSTOMER_NIP_METAFIELDS[0].key}") { value }
-          nip2: metafield(namespace: "${CUSTOMER_NIP_METAFIELDS[1].namespace}", key: "${CUSTOMER_NIP_METAFIELDS[1].key}") { value }
-          nip3: metafield(namespace: "${CUSTOMER_NIP_METAFIELDS[2].namespace}", key: "${CUSTOMER_NIP_METAFIELDS[2].key}") { value }
-        }
-      }
-    }
-  }
   lineItems(first: 50) {
     nodes {
       id
@@ -173,15 +134,12 @@ function customerNip(customer: ShopifyOrderNode["customer"]) {
 }
 
 function orderBuyer(order: ShopifyOrderNode) {
-  const purchasingEntity = order.purchasingEntity && "company" in order.purchasingEntity ? order.purchasingEntity : null;
-  const companyName = purchasingEntity?.company?.name ?? undefined;
-  const companyCustomer = purchasingEntity?.contact?.customer ?? null;
-  const customer = companyCustomer ?? order.customer ?? null;
+  const customer = order.customer ?? null;
 
   return {
-    name: companyName ?? customer?.displayName ?? "Shopify buyer",
-    nip: customerNip(customer) || customerNip(order.customer),
-    address: addressLine(customer?.defaultAddress ?? order.customer?.defaultAddress)
+    name: customer?.displayName ?? "Shopify buyer",
+    nip: customerNip(customer),
+    address: addressLine(customer?.defaultAddress)
   };
 }
 

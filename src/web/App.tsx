@@ -57,6 +57,8 @@ export function App() {
   });
   const [saving, setSaving] = useState(false);
   const [connectionState, setConnectionState] = useState<"unknown" | "connected" | "error">("unknown");
+  const [settingsMessage, setSettingsMessage] = useState("");
+  const [settingsError, setSettingsError] = useState("");
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [onlyUnprocessedB2b, setOnlyUnprocessedB2b] = useState(false);
@@ -91,7 +93,10 @@ export function App() {
   }
 
   async function loadOrders() {
-    if (!shop) return;
+    if (!shop) {
+      setOrderError(t("orders.missingShop"));
+      return;
+    }
 
     setOrdersLoading(true);
     setOrderError("");
@@ -99,13 +104,14 @@ export function App() {
       const response = await fetch(apiPath(`/api/orders?onlyUnprocessedB2b=${onlyUnprocessedB2b}`));
 
       if (!response.ok) {
-        throw new Error("Order fetch failed");
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? t("orders.loadError"));
       }
 
       const result = (await response.json()) as { orders: OrderRow[] };
       setOrders(result.orders);
-    } catch {
-      setOrderError(t("orders.loadError"));
+    } catch (error) {
+      setOrderError(error instanceof Error ? error.message : t("orders.loadError"));
     } finally {
       setOrdersLoading(false);
     }
@@ -120,7 +126,14 @@ export function App() {
   }, [shop, onlyUnprocessedB2b]);
 
   async function saveToken() {
+    if (!shop) {
+      setSettingsError(t("settings.missingShop"));
+      return;
+    }
+
     setSaving(true);
+    setSettingsError("");
+    setSettingsMessage("");
     try {
       const response = await fetch(`/api/ksef/settings?shop=${encodeURIComponent(shop)}`, {
         method: "PUT",
@@ -132,14 +145,17 @@ export function App() {
       });
 
       if (!response.ok) {
-        throw new Error("Token save failed");
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? t("settings.saveError"));
       }
 
       const result = (await response.json()) as { connected: boolean };
-      setConnectionState(result.connected ? "connected" : "error");
+      setConnectionState(result.connected ? "connected" : "unknown");
       setToken("");
-    } catch {
+      setSettingsMessage(t(result.connected ? "settings.connectedSaved" : "settings.saved"));
+    } catch (error) {
       setConnectionState("error");
+      setSettingsError(error instanceof Error ? error.message : t("settings.saveError"));
     } finally {
       setSaving(false);
     }
@@ -268,6 +284,8 @@ export function App() {
                   {view === "settings" ? (
                     <BlockStack gap="300">
                       <Banner tone="info">{t("settings.safeTest")}</Banner>
+                      {settingsMessage ? <Banner tone="success">{settingsMessage}</Banner> : null}
+                      {settingsError ? <Banner tone="critical">{settingsError}</Banner> : null}
                       <div className="settings-grid">
                         <div className="settings-panel">
                           <BlockStack gap="300">
