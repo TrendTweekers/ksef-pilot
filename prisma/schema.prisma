@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Shop {
+  id            Int       @id @default(autoincrement())
+  domain        String    @unique
+  accessToken   String
+  ksefToken     String?
+  ksefConnected Boolean   @default(false)
+  plan          String    @default("free")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  invoices      KsefInvoice[]
+  orderFlags    OrderFlag[]
+  sessions      ShopifySession[]
+}
+
+model ShopifySession {
+  id          String   @id
+  shopId      Int
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  state       String
+  isOnline    Boolean  @default(false)
+  scope       String
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([shopId])
+}
+
+model OrderFlag {
+  id          String   @id @default(uuid())
+  shopId      Int
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  orderId     String
+  orderName   String
+  isB2b       Boolean  @default(false)
+  nip         String?
+  buyerName   String?
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shopId, orderId])
+  @@index([shopId, isB2b, processedAt])
+}
+
+model KsefInvoice {
+  id            String        @id @default(uuid())
+  shopId        Int
+  shop          Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  orderId       String
+  orderName     String
+  nip           String
+  buyerName     String
+  fa3Xml        String
+  ksefNumber    String?
+  status        String
+  correctionOf  String?
+  totalGross    Decimal       @db.Decimal(12, 2)
+  retryCount    Int           @default(0)
+  nextRetryAt   DateTime?
+  lastError     String?
+  createdAt     DateTime      @default(now())
+  submittedAt   DateTime?
+
+  items         InvoiceItem[]
+
+  @@index([shopId, orderId])
+  @@index([status, nextRetryAt])
+}
+
+model InvoiceItem {
+  id          String      @id @default(uuid())
+  invoiceId   String
+  invoice     KsefInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  name        String
+  quantity    Int
+  unitPrice   Decimal     @db.Decimal(12, 2)
+  vatRate     String
+  totalNet    Decimal     @db.Decimal(12, 2)
+  totalVat    Decimal     @db.Decimal(12, 2)
+}
