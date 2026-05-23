@@ -213,6 +213,45 @@ export async function fetchShopifyOrders(shop: Shop, onlyUnprocessedB2b: boolean
   const flagMap = new Map(flags.map((flag) => [flag.orderId, flag]));
   const invoiceMap = new Map(invoices.map((invoice) => [invoice.orderId, invoice]));
   const buyerProfileMap = new Map(buyerProfiles.map((profile) => [profile.customerId, profile]));
+  const profileBackfills = data.orders.nodes.flatMap((order) => {
+    const flag = flagMap.get(order.id);
+    const nip = normalizeNip(flag?.nip);
+
+    if (!order.customer?.id || !nip || buyerProfileMap.has(order.customer.id)) {
+      return [];
+    }
+
+    buyerProfileMap.set(order.customer.id, {
+      id: `pending-${order.customer.id}`,
+      shopId: shop.id,
+      customerId: order.customer.id,
+      nip,
+      buyerName: flag?.buyerName ?? orderBuyer(order).name,
+      source: "order-flag",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    return [
+      prisma.customerBuyerProfile.upsert({
+        where: { shopId_customerId: { shopId: shop.id, customerId: order.customer.id } },
+        create: {
+          shopId: shop.id,
+          customerId: order.customer.id,
+          nip,
+          buyerName: flag?.buyerName ?? orderBuyer(order).name,
+          source: "order-flag"
+        },
+        update: {
+          nip,
+          buyerName: flag?.buyerName ?? orderBuyer(order).name,
+          source: "order-flag"
+        }
+      })
+    ];
+  });
+
+  await Promise.all(profileBackfills);
   const orders = data.orders.nodes.map((order) => toOrderListItem(order, flagMap, invoiceMap, buyerProfileMap));
 
   return onlyUnprocessedB2b ? orders.filter((order) => order.isB2b && !order.processed) : orders;
