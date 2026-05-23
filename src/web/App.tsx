@@ -4,15 +4,13 @@ import {
   BlockStack,
   Button,
   Card,
-  Frame,
   InlineStack,
   Layout,
-  Navigation,
   Page,
+  Tabs,
   Text,
   TextField
 } from "@shopify/polaris";
-import { HomeIcon, OrderIcon, SettingsIcon, ReceiptDollarIcon } from "@shopify/polaris-icons";
 import { useTranslation } from "react-i18next";
 import { AppBridgeBootstrap } from "./components/AppBridgeBootstrap";
 
@@ -52,105 +50,86 @@ export function App() {
     }
   }
 
-  const navigationMarkup = (
-    <Navigation location="/">
-      <Navigation.Section
-        items={[
-          {
-            label: t("home.title"),
-            icon: HomeIcon,
-            selected: false,
-            onClick: () => setView("settings")
-          },
-          {
-            label: t("nav.orders"),
-            icon: OrderIcon,
-            selected: view === "orders",
-            onClick: () => setView("orders")
-          },
-          {
-            label: t("nav.settings"),
-            icon: SettingsIcon,
-            selected: view === "settings",
-            onClick: () => setView("settings")
-          },
-          {
-            label: t("nav.billing"),
-            icon: ReceiptDollarIcon,
-            selected: view === "billing",
-            onClick: () => setView("billing")
-          }
-        ]}
-      />
-    </Navigation>
-  );
+  const tabs = [
+    { id: "orders", content: t("nav.orders") },
+    { id: "settings", content: t("nav.settings") },
+    { id: "billing", content: t("nav.billing") }
+  ];
+  const selectedTab = tabs.findIndex((tab) => tab.id === view);
 
   return (
-    <Frame navigation={navigationMarkup}>
+    <>
       <AppBridgeBootstrap />
       <Page title={t("home.title")} subtitle={t("home.tagline")}>
         <Layout>
           <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
-                <InlineStack align="space-between" blockAlign="center">
-                  <BlockStack gap="100">
-                    <Text as="h2" variant="headingMd">
-                      {view === "settings" ? t("settings.title") : view === "orders" ? t("orders.title") : "Billing"}
-                    </Text>
-                    <Text as="p" tone="subdued">
-                      {t("home.description")}
-                    </Text>
-                  </BlockStack>
-                  <Badge tone={connectionState === "connected" ? "success" : "attention"}>
-                    {connectionState === "connected" ? t("settings.connected") : t("settings.notConnected")}
-                  </Badge>
-                </InlineStack>
+            <BlockStack gap="400">
+              <Tabs tabs={tabs} selected={selectedTab} onSelect={(index) => setView(tabs[index].id as View)} />
 
-                {view === "settings" ? (
-                  <BlockStack gap="300">
-                    <TextField
-                      label={t("settings.tokenLabel")}
-                      value={token}
-                      onChange={setToken}
-                      type="password"
-                      autoComplete="off"
-                      helpText={t("settings.tokenHelp")}
-                    />
-                    <InlineStack gap="200">
-                      <Button variant="primary" loading={saving} disabled={!token || !shop} onClick={saveToken}>
-                        {t("settings.save")}
-                      </Button>
-                      <Button disabled={!token || !shop} onClick={saveToken}>
-                        {t("settings.test")}
-                      </Button>
-                    </InlineStack>
-                  </BlockStack>
-                ) : null}
-
-                {view === "orders" ? (
-                  <BlockStack gap="300">
-                    <InlineStack align="space-between">
-                      <Text as="p">{t("orders.empty")}</Text>
-                      <Badge>{t("orders.filter")}</Badge>
-                    </InlineStack>
-                  </BlockStack>
-                ) : null}
-
-                {view === "billing" ? (
-                  <InlineStack gap="200" wrap>
-                    {["Free: 5 invoices/month", "Basic $9.99: 50 invoices/month", "Pro $19.99: 200 invoices/month", "Unlimited $39.99"].map(
-                      (tier) => (
-                        <Badge key={tier}>{tier}</Badge>
-                      )
-                    )}
+              <Card>
+                <BlockStack gap="400">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">
+                        {view === "settings" ? t("settings.title") : view === "orders" ? t("orders.title") : "Billing"}
+                      </Text>
+                      <Text as="p" tone="subdued">
+                        {t("home.description")}
+                      </Text>
+                    </BlockStack>
+                    <Badge tone={connectionState === "connected" ? "success" : "attention"}>
+                      {connectionState === "connected" ? t("settings.connected") : t("settings.notConnected")}
+                    </Badge>
                   </InlineStack>
-                ) : null}
-              </BlockStack>
-            </Card>
+
+                  {view === "settings" ? (
+                    <BlockStack gap="300">
+                      <TextField
+                        label={t("settings.tokenLabel")}
+                        value={token}
+                        onChange={setToken}
+                        type="password"
+                        autoComplete="off"
+                        helpText={t("settings.tokenHelp")}
+                      />
+                      <InlineStack gap="200">
+                        <Button variant="primary" loading={saving} disabled={!token || !shop} onClick={saveToken}>
+                          {t("settings.save")}
+                        </Button>
+                        <Button disabled={!token || !shop} onClick={saveToken}>
+                          {t("settings.test")}
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
+                  ) : null}
+
+                  {view === "orders" ? (
+                    <BlockStack gap="300">
+                      <InlineStack align="space-between">
+                        <Text as="p">{t("orders.empty")}</Text>
+                        <Badge>{t("orders.filter")}</Badge>
+                      </InlineStack>
+                    </BlockStack>
+                  ) : null}
+
+                  {view === "billing" ? (
+                    <InlineStack gap="200" wrap>
+                      {[
+                        "Free: 5 invoices/month",
+                        "Basic $9.99: 50 invoices/month",
+                        "Pro $19.99: 200 invoices/month",
+                        "Unlimited $39.99"
+                      ].map((tier) => (
+                        <Badge key={tier}>{tier}</Badge>
+                      ))}
+                    </InlineStack>
+                  ) : null}
+                </BlockStack>
+              </Card>
+            </BlockStack>
           </Layout.Section>
         </Layout>
       </Page>
-    </Frame>
+    </>
   );
 }
