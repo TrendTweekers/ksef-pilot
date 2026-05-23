@@ -4,6 +4,7 @@ import { env } from "../config/env.js";
 import type { Fa3InvoiceData } from "./fa3.js";
 import { buildFa3Xml, validateFa3Input } from "./fa3.js";
 import { shopifyGraphql } from "./shopify.js";
+import { assertCanGenerateInvoice } from "./billing.js";
 
 const CUSTOMER_NIP_METAFIELDS = [
   { namespace: "custom", key: "nip" },
@@ -397,6 +398,8 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
   if (existing) {
     return { invoice: existing, reused: true };
   }
+
+  await assertCanGenerateInvoice(shop);
 
   const fa3 = orderToFa3(shop, order, buyerNip, buyerName);
   const validation = validateFa3Input(fa3);

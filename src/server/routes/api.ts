@@ -5,10 +5,19 @@ import { loadShop } from "../middleware/shop.js";
 import { encryptSecret } from "../services/crypto.js";
 import { testKsefToken } from "../services/ksef.js";
 import { prisma } from "../config/prisma.js";
+import { env } from "../config/env.js";
+import {
+  billingPlans,
+  createBillingSubscription,
+  getBillingSummary,
+  markBillingConfirmed,
+  normalizePlan
+} from "../services/billing.js";
 import { buildFa3Xml, buildSampleFa3Invoice, validateFa3Input } from "../services/fa3.js";
 import { describeSchemaValidation } from "../services/fa3Schema.js";
 import { fetchShopifyOrders, generateDraftInvoiceForOrder, saveOrderFlag } from "../services/orders.js";
 import { buildInvoicePdf } from "../services/pdf.js";
+import { notifyTelegram } from "../services/telegram.js";
 
 export const apiRouter = Router();
 
@@ -35,6 +44,9 @@ const generateInvoiceSchema = z.object({
 });
 
 const invoicePeriodSchema = z.enum(["week", "month", "all"]).default("month");
+const billingSubscribeSchema = z.object({
+  plan: z.enum(["free", "basic", "pro", "unlimited"])
+});
 
 const fa3LineSchema = z.object({
   name: z.string().min(1),
@@ -295,12 +307,98 @@ apiRouter.post("/orders/generate-invoice", loadShop, async (req, res, next) => {
         createdAt: result.invoice.createdAt
       }
     });
+    await notifyTelegram(`Invoice draft generated: ${shop.domain} ${result.invoice.orderName} ${result.invoice.totalGross} PLN`);
   } catch (error) {
     if (error instanceof Error) {
       res.status(400).json({ error: error.message });
       return;
     }
 
+    next(error);
+  }
+});
+
+apiRouter.get("/billing", loadShop, async (_req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const summary = await getBillingSummary(shop);
+
+    res.json({
+      ...summary,
+      plans: billingPlans
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post("/billing/subscribe", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const input = billingSubscribeSchema.parse(req.body);
+    const result = await createBillingSubscription(shop, input.plan);
+
+    await notifyTelegram(`Billing selected: ${shop.domain} -> ${input.plan}`);
+
+    res.json({
+      confirmationUrl: result.confirmationUrl,
+      plan: input.plan
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
+    next(error);
+  }
+});
+
+apiRouter.get("/billing/confirm", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const plan = normalizePlan(typeof req.query.plan === "string" ? req.query.plan : "free");
+    await markBillingConfirmed(shop, plan);
+    await notifyTelegram(`Billing confirmed: ${shop.domain} -> ${plan}`);
+    res.redirect(`/?shop=${encodeURIComponent(shop.domain)}&billing=confirmed`);
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.get("/review/status", loadShop, async (_req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const invoiceCount = await prisma.ksefInvoice.count({ where: { shopId: shop.id } });
+    const exportedCount = await prisma.ksefInvoice.count({
+      where: {
+        shopId: shop.id,
+        status: { in: ["exported", "submitted"] }
+      }
+    });
+    const shouldAsk = !shop.reviewDismissedAt && invoiceCount >= 3 && exportedCount >= 1;
+
+    res.json({
+      shouldAsk,
+      invoiceCount,
+      exportedCount,
+      reviewUrl: env.SHOPIFY_REVIEW_URL ?? null
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post("/review/dismiss", loadShop, async (_req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    await prisma.shop.update({
+      where: { id: shop.id },
+      data: { reviewDismissedAt: new Date() }
+    });
+
+    res.json({ ok: true });
+  } catch (error) {
     next(error);
   }
 });
@@ -378,6 +476,7 @@ apiRouter.get("/invoices/export.zip", loadShop, async (req, res, next) => {
         },
         data: { status: "exported" }
       });
+      await notifyTelegram(`Invoice packet exported: ${shop.domain} ${invoices.length} invoices (${period})`);
     }
 
     const content = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });

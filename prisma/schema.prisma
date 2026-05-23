@@ -11,6 +11,8 @@ model Shop {
   id            Int       @id @default(autoincrement())
   domain        String    @unique
   accessToken   String
+  isActive      Boolean   @default(true)
+  uninstalledAt DateTime?
   ksefToken     String?
   ksefConnected Boolean   @default(false)
   sellerNip     String?
@@ -18,6 +20,10 @@ model Shop {
   sellerAddress String?
   placeOfIssue  String?
   plan          String    @default("free")
+  billingSubscriptionId String?
+  billingStatus String?
+  reviewDismissedAt DateTime?
+  reviewRequestedAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

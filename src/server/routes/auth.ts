@@ -8,6 +8,8 @@ import {
   normalizeShop,
   verifyShopifyHmac
 } from "../services/shopify.js";
+import { notifyTelegram } from "../services/telegram.js";
+import { registerCoreWebhooks } from "../services/webhookSubscriptions.js";
 
 export const authRouter = Router();
 
@@ -60,7 +62,9 @@ authRouter.get("/callback", async (req, res, next) => {
         accessToken: token.access_token
       },
       update: {
-        accessToken: token.access_token
+        accessToken: token.access_token,
+        isActive: true,
+        uninstalledAt: null
       }
     });
 
@@ -80,6 +84,8 @@ authRouter.get("/callback", async (req, res, next) => {
     });
 
     res.clearCookie("shopify_oauth_state");
+    await registerCoreWebhooks(savedShop);
+    await notifyTelegram(`KSeF Pilot installed or reconnected: ${shop}`);
     res.redirect(`/?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(String(req.query.host ?? ""))}`);
   } catch (error) {
     next(error);

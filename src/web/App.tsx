@@ -55,6 +55,22 @@ interface InvoiceRow {
   itemCount: number;
 }
 
+interface BillingSummary {
+  plan: string;
+  planName: string;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  billingStatus: string;
+  canGenerate: boolean;
+  plans: Record<string, { name: string; price: number; limit: number | null }>;
+}
+
+interface ReviewStatus {
+  shouldAsk: boolean;
+  reviewUrl: string | null;
+}
+
 function currencyWarning(order: OrderRow) {
   return order.currency === "PLN"
     ? ""
@@ -96,6 +112,10 @@ export function App() {
   const [invoiceError, setInvoiceError] = useState("");
   const [xmlPreview, setXmlPreview] = useState<{ title: string; xml: string } | null>(null);
   const [bulkGenerating, setBulkGenerating] = useState(false);
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState("");
+  const [reviewStatus, setReviewStatus] = useState<ReviewStatus | null>(null);
 
   function apiPath(path: string) {
     const separator = path.includes("?") ? "&" : "?";
@@ -182,12 +202,44 @@ export function App() {
     }
   }
 
+  async function loadBilling() {
+    if (!shop) return;
+
+    setBillingLoading(true);
+    setBillingError("");
+    try {
+      const response = await fetch(apiPath("/api/billing"));
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "Could not load billing.");
+      }
+
+      setBilling((await response.json()) as BillingSummary);
+    } catch (error) {
+      setBillingError(error instanceof Error ? error.message : "Could not load billing.");
+    } finally {
+      setBillingLoading(false);
+    }
+  }
+
+  async function loadReviewStatus() {
+    if (!shop) return;
+
+    const response = await fetch(apiPath("/api/review/status"));
+    if (response.ok) {
+      setReviewStatus((await response.json()) as ReviewStatus);
+    }
+  }
+
   useEffect(() => {
     void loadSettings();
   }, [shop]);
 
   useEffect(() => {
     void loadOrders();
+    void loadBilling();
+    void loadReviewStatus();
   }, [shop, onlyUnprocessedB2b]);
 
   useEffect(() => {
@@ -282,6 +334,8 @@ export function App() {
       updateOrder(order.id, { processed: true, invoiceStatus: result.invoice.status });
       setLastInvoice(t("orders.invoiceCreated", { orderName: result.invoice.orderName }));
       void loadInvoices();
+      void loadBilling();
+      void loadReviewStatus();
     } catch (error) {
       setOrderError(error instanceof Error ? error.message : t("orders.generateError"));
     } finally {
@@ -326,6 +380,8 @@ export function App() {
 
       setLastInvoice(`${created} draft invoice${created === 1 ? "" : "s"} created.`);
       void loadInvoices();
+      void loadBilling();
+      void loadReviewStatus();
     } catch (error) {
       setOrderError(error instanceof Error ? error.message : t("orders.generateError"));
     } finally {
@@ -361,6 +417,45 @@ export function App() {
 
   function downloadInvoiceZip() {
     window.open(apiPath(`/api/invoices/export.zip?period=${invoicePeriod}`), "_blank");
+    setTimeout(() => {
+      void loadInvoices();
+      void loadReviewStatus();
+    }, 1200);
+  }
+
+  async function subscribe(plan: string) {
+    setBillingLoading(true);
+    setBillingError("");
+    try {
+      const response = await fetch(apiPath("/api/billing/subscribe"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan })
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "Could not start billing.");
+      }
+
+      const result = (await response.json()) as { confirmationUrl: string | null };
+
+      if (result.confirmationUrl) {
+        window.open(result.confirmationUrl, "_top");
+        return;
+      }
+
+      await loadBilling();
+    } catch (error) {
+      setBillingError(error instanceof Error ? error.message : "Could not start billing.");
+    } finally {
+      setBillingLoading(false);
+    }
+  }
+
+  async function dismissReview() {
+    await fetch(apiPath("/api/review/dismiss"), { method: "POST" });
+    setReviewStatus({ shouldAsk: false, reviewUrl: reviewStatus?.reviewUrl ?? null });
   }
 
   const tabs = [
@@ -376,6 +471,7 @@ export function App() {
   const readyVisibleCount = orders.filter(
     (order) => order.isB2b && !order.processed && order.buyerNip.replace(/\D/g, "").length === 10
   ).length;
+  const limitReached = billing ? !billing.canGenerate : false;
 
   return (
     <>
@@ -416,6 +512,29 @@ export function App() {
               </div>
 
               <Tabs tabs={tabs} selected={selectedTab} onSelect={(index) => setView(tabs[index].id as View)} />
+
+              {reviewStatus?.shouldAsk ? (
+                <Card>
+                  <InlineStack align="space-between" blockAlign="center" gap="300">
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">
+                        Is KSeF Pilot helping?
+                      </Text>
+                      <Text as="p" tone="subdued">
+                        If it is saving time, a Shopify review would help us reach more merchants. If not, tell us before we ask publicly.
+                      </Text>
+                    </BlockStack>
+                    <InlineStack gap="200">
+                      {reviewStatus.reviewUrl ? (
+                        <Button variant="primary" url={reviewStatus.reviewUrl} target="_blank" onClick={dismissReview}>
+                          Leave review
+                        </Button>
+                      ) : null}
+                      <Button onClick={dismissReview}>Not now</Button>
+                    </InlineStack>
+                  </InlineStack>
+                </Card>
+              ) : null}
 
               <Card>
                 <BlockStack gap="400">
@@ -527,6 +646,13 @@ export function App() {
                   {view === "orders" ? (
                     <BlockStack gap="400">
                       <Banner tone="info">{t("orders.safeTest")}</Banner>
+                      {billing ? (
+                        <Banner tone={limitReached ? "critical" : "info"}>
+                          {billing.limit === null
+                            ? `${billing.planName} plan: unlimited invoices this month.`
+                            : `${billing.planName} plan: ${billing.used}/${billing.limit} invoices used this month.`}
+                        </Banner>
+                      ) : null}
                       <Banner tone="info">
                         Saved buyer NIPs are remembered by Shopify customer and used to prefill future B2B orders.
                       </Banner>
@@ -552,7 +678,7 @@ export function App() {
                         <InlineStack gap="200">
                           <Button
                             variant="primary"
-                            disabled={!readyVisibleCount}
+                            disabled={!readyVisibleCount || limitReached}
                             loading={bulkGenerating}
                             onClick={generateReadyDrafts}
                           >
@@ -631,7 +757,12 @@ export function App() {
                               <Button
                                 variant="primary"
                                 loading={actionOrderId === order.id}
-                                disabled={!order.isB2b || order.processed || order.buyerNip.replace(/\D/g, "").length !== 10}
+                                disabled={
+                                  limitReached ||
+                                  !order.isB2b ||
+                                  order.processed ||
+                                  order.buyerNip.replace(/\D/g, "").length !== 10
+                                }
                                 onClick={() => generateInvoice(order)}
                               >
                                 {t("orders.generate")}
@@ -733,16 +864,62 @@ export function App() {
                   ) : null}
 
                   {view === "billing" ? (
-                    <InlineStack gap="200" wrap>
-                      {[
-                        "Free: 5 invoices/month",
-                        "Basic $9.99: 50 invoices/month",
-                        "Pro $19.99: 200 invoices/month",
-                        "Unlimited $39.99"
-                      ].map((tier) => (
-                        <Badge key={tier}>{tier}</Badge>
-                      ))}
-                    </InlineStack>
+                    <BlockStack gap="400">
+                      {billingError ? <Banner tone="critical">{billingError}</Banner> : null}
+                      {billing ? (
+                        <div className="billing-summary">
+                          <BlockStack gap="100">
+                            <Text as="h3" variant="headingMd">
+                              {billing.planName} plan
+                            </Text>
+                            <Text as="p" tone="subdued">
+                              Status: {billing.billingStatus}
+                            </Text>
+                          </BlockStack>
+                          <strong>
+                            {billing.limit === null ? `${billing.used} used / unlimited` : `${billing.used} / ${billing.limit} used`}
+                          </strong>
+                        </div>
+                      ) : null}
+                      {billingLoading ? (
+                        <InlineStack align="center">
+                          <Spinner accessibilityLabel="Loading billing" size="small" />
+                        </InlineStack>
+                      ) : null}
+                      <div className="plan-grid">
+                        {[
+                          ["free", "Free", "$0", "5 invoices/month"],
+                          ["basic", "Basic", "$9.99", "50 invoices/month"],
+                          ["pro", "Pro", "$19.99", "200 invoices/month"],
+                          ["unlimited", "Unlimited", "$39.99", "Unlimited invoices"]
+                        ].map(([handle, name, price, limit]) => (
+                          <div className="plan-card" key={handle}>
+                            <BlockStack gap="300">
+                              <InlineStack align="space-between" blockAlign="center">
+                                <Text as="h3" variant="headingMd">
+                                  {name}
+                                </Text>
+                                {billing?.plan === handle ? <Badge tone="success">Current</Badge> : null}
+                              </InlineStack>
+                              <Text as="p" variant="headingLg">
+                                {price}
+                              </Text>
+                              <Text as="p" tone="subdued">
+                                {limit}
+                              </Text>
+                              <Button
+                                variant={billing?.plan === handle ? "secondary" : "primary"}
+                                disabled={billing?.plan === handle}
+                                loading={billingLoading}
+                                onClick={() => subscribe(handle)}
+                              >
+                                {billing?.plan === handle ? "Active" : handle === "free" ? "Switch to free" : "Choose plan"}
+                              </Button>
+                            </BlockStack>
+                          </div>
+                        ))}
+                      </div>
+                    </BlockStack>
                   ) : null}
                 </BlockStack>
               </Card>

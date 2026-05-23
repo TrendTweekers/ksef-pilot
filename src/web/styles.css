@@ -84,6 +84,8 @@ body {
 .settings-panel,
 .order-row,
 .invoice-row,
+.plan-card,
+.billing-summary,
 .xml-preview {
   border: 1px solid var(--ff-border);
   border-radius: 8px;
@@ -135,6 +137,29 @@ body {
   padding: 16px;
 }
 
+.billing-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+}
+
+.billing-summary strong {
+  color: var(--ff-ink);
+  font-size: 20px;
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.plan-card {
+  padding: 16px;
+}
+
 .period-select {
   min-width: 220px;
 }
@@ -178,8 +203,14 @@ body {
   .app-hero,
   .stat-grid,
   .settings-grid,
+  .plan-grid,
   .order-fields {
     grid-template-columns: 1fr;
+  }
+
+  .billing-summary {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .period-select {
