@@ -160,6 +160,36 @@ body {
   padding: 16px;
 }
 
+.setup-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.setup-item {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--ff-border);
+  border-left: 3px solid #d89b00;
+  border-radius: 8px;
+  background: #fffdfa;
+}
+
+.setup-item.done {
+  border-left-color: var(--ff-success);
+}
+
+.setup-item span {
+  width: max-content;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ff-paper-dark);
+  color: var(--ff-ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .period-select {
   min-width: 220px;
 }
@@ -204,6 +234,7 @@ body {
   .stat-grid,
   .settings-grid,
   .plan-grid,
+  .setup-grid,
   .order-fields {
     grid-template-columns: 1fr;
   }

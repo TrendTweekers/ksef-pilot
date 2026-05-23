@@ -71,6 +71,28 @@ interface ReviewStatus {
   reviewUrl: string | null;
 }
 
+interface SetupStatus {
+  complete: boolean;
+  items: Array<{
+    id: string;
+    label: string;
+    done: boolean;
+    detail: string;
+  }>;
+}
+
+interface XsdValidationResult {
+  invoiceId: string;
+  orderName: string;
+  validation: {
+    valid: boolean;
+    enforced: boolean;
+    officialXsdUrl: string;
+    issueCount: number;
+    issues: Array<{ path: string; code: string; message: string; severity: string }>;
+  };
+}
+
 function currencyWarning(order: OrderRow) {
   return order.currency === "PLN"
     ? ""
@@ -116,6 +138,9 @@ export function App() {
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState("");
   const [reviewStatus, setReviewStatus] = useState<ReviewStatus | null>(null);
+  const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
+  const [xsdValidation, setXsdValidation] = useState<XsdValidationResult | null>(null);
+  const [validatingInvoiceId, setValidatingInvoiceId] = useState<string | null>(null);
 
   function apiPath(path: string) {
     const separator = path.includes("?") ? "&" : "?";
@@ -232,6 +257,15 @@ export function App() {
     }
   }
 
+  async function loadSetupStatus() {
+    if (!shop) return;
+
+    const response = await fetch(apiPath("/api/setup/status"));
+    if (response.ok) {
+      setSetupStatus((await response.json()) as SetupStatus);
+    }
+  }
+
   useEffect(() => {
     void loadSettings();
   }, [shop]);
@@ -240,6 +274,7 @@ export function App() {
     void loadOrders();
     void loadBilling();
     void loadReviewStatus();
+    void loadSetupStatus();
   }, [shop, onlyUnprocessedB2b]);
 
   useEffect(() => {
@@ -336,6 +371,7 @@ export function App() {
       void loadInvoices();
       void loadBilling();
       void loadReviewStatus();
+      void loadSetupStatus();
     } catch (error) {
       setOrderError(error instanceof Error ? error.message : t("orders.generateError"));
     } finally {
@@ -382,6 +418,7 @@ export function App() {
       void loadInvoices();
       void loadBilling();
       void loadReviewStatus();
+      void loadSetupStatus();
     } catch (error) {
       setOrderError(error instanceof Error ? error.message : t("orders.generateError"));
     } finally {
@@ -420,7 +457,27 @@ export function App() {
     setTimeout(() => {
       void loadInvoices();
       void loadReviewStatus();
+      void loadSetupStatus();
     }, 1200);
+  }
+
+  async function validateInvoice(invoice: InvoiceRow) {
+    setValidatingInvoiceId(invoice.id);
+    setInvoiceError("");
+    try {
+      const response = await fetch(apiPath(`/api/invoices/${invoice.id}/validate`));
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "Could not validate invoice XML.");
+      }
+
+      setXsdValidation((await response.json()) as XsdValidationResult);
+    } catch (error) {
+      setInvoiceError(error instanceof Error ? error.message : "Could not validate invoice XML.");
+    } finally {
+      setValidatingInvoiceId(null);
+    }
   }
 
   async function subscribe(plan: string) {
@@ -533,6 +590,39 @@ export function App() {
                       <Button onClick={dismissReview}>Not now</Button>
                     </InlineStack>
                   </InlineStack>
+                </Card>
+              ) : null}
+
+              {setupStatus ? (
+                <Card>
+                  <BlockStack gap="300">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <BlockStack gap="100">
+                        <Text as="h2" variant="headingMd">
+                          Setup checklist
+                        </Text>
+                        <Text as="p" tone="subdued">
+                          Keep the compliance path visible before live KSeF submission.
+                        </Text>
+                      </BlockStack>
+                      <Badge tone={setupStatus.complete ? "success" : "attention"}>
+                        {`${setupStatus.items.filter((item) => item.done).length}/${setupStatus.items.length}`}
+                      </Badge>
+                    </InlineStack>
+                    <div className="setup-grid">
+                      {setupStatus.items.map((item) => (
+                        <div className={item.done ? "setup-item done" : "setup-item"} key={item.id}>
+                          <span>{item.done ? "Done" : "Open"}</span>
+                          <Text as="h3" variant="headingSm">
+                            {item.label}
+                          </Text>
+                          <Text as="p" tone="subdued">
+                            {item.detail}
+                          </Text>
+                        </div>
+                      ))}
+                    </div>
+                  </BlockStack>
                 </Card>
               ) : null}
 
@@ -780,6 +870,26 @@ export function App() {
                         Drafts are local FA(3) XML files. The ZIP includes XML, PDF previews, and a CSV manifest for accountant review before any KSeF submission flow is enabled.
                       </Banner>
                       {invoiceError ? <Banner tone="critical">{invoiceError}</Banner> : null}
+                      {xsdValidation ? (
+                        <Banner tone={xsdValidation.validation.valid ? "success" : "critical"}>
+                          <BlockStack gap="200">
+                            <Text as="p">
+                              {xsdValidation.validation.valid
+                                ? `${xsdValidation.orderName} passed official FA(3) XSD validation.`
+                                : `${xsdValidation.orderName} failed official FA(3) XSD validation with ${xsdValidation.validation.issueCount} issue(s).`}
+                            </Text>
+                            {!xsdValidation.validation.valid ? (
+                              <BlockStack gap="100">
+                                {xsdValidation.validation.issues.slice(0, 4).map((issue, index) => (
+                                  <Text as="p" tone="subdued" key={`${issue.code}-${index}`}>
+                                    {issue.code}: {issue.message}
+                                  </Text>
+                                ))}
+                              </BlockStack>
+                            ) : null}
+                          </BlockStack>
+                        </Banner>
+                      ) : null}
                       <InlineStack align="space-between" blockAlign="end" gap="300">
                         <div className="period-select">
                           <Select
@@ -839,6 +949,9 @@ export function App() {
                                 </Text>
                               </BlockStack>
                               <InlineStack gap="200">
+                                <Button loading={validatingInvoiceId === invoice.id} onClick={() => validateInvoice(invoice)}>
+                                  Validate FA(3)
+                                </Button>
                                 <Button onClick={() => previewInvoice(invoice)}>Preview XML</Button>
                                 <Button onClick={() => downloadInvoicePdf(invoice)}>Download PDF</Button>
                                 <Button variant="primary" onClick={() => downloadInvoice(invoice)}>

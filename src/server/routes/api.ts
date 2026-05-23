@@ -14,7 +14,7 @@ import {
   normalizePlan
 } from "../services/billing.js";
 import { buildFa3Xml, buildSampleFa3Invoice, validateFa3Input } from "../services/fa3.js";
-import { describeSchemaValidation } from "../services/fa3Schema.js";
+import { describeSchemaValidation, validateFa3XmlAgainstOfficialXsd } from "../services/fa3Schema.js";
 import { fetchShopifyOrders, generateDraftInvoiceForOrder, saveOrderFlag } from "../services/orders.js";
 import { buildInvoicePdf } from "../services/pdf.js";
 import { notifyTelegram } from "../services/telegram.js";
@@ -389,6 +389,63 @@ apiRouter.get("/review/status", loadShop, async (_req, res, next) => {
   }
 });
 
+apiRouter.get("/setup/status", loadShop, async (_req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const [invoiceCount, exportedCount] = await Promise.all([
+      prisma.ksefInvoice.count({ where: { shopId: shop.id } }),
+      prisma.ksefInvoice.count({ where: { shopId: shop.id, status: { in: ["exported", "submitted"] } } })
+    ]);
+    const billing = await getBillingSummary(shop);
+
+    const items = [
+      {
+        id: "seller",
+        label: "Seller identity",
+        done: Boolean(shop.sellerNip && shop.sellerName),
+        detail: shop.sellerNip && shop.sellerName ? "Seller NIP and legal name saved." : "Add seller NIP and legal name in KSeF Settings."
+      },
+      {
+        id: "billing",
+        label: "Billing",
+        done: billing.canGenerate,
+        detail: `${billing.planName} plan, ${billing.limit === null ? `${billing.used} used` : `${billing.used}/${billing.limit} used this month`}.`
+      },
+      {
+        id: "orders",
+        label: "First draft invoice",
+        done: invoiceCount > 0,
+        detail: invoiceCount > 0 ? `${invoiceCount} draft invoice record created.` : "Mark a B2B order and generate a draft."
+      },
+      {
+        id: "export",
+        label: "Accountant export",
+        done: exportedCount > 0,
+        detail: exportedCount > 0 ? `${exportedCount} invoice exported.` : "Export a ZIP packet with XML, PDF and CSV."
+      },
+      {
+        id: "ksef",
+        label: "KSeF token",
+        done: shop.ksefConnected,
+        detail: shop.ksefConnected ? "KSeF token is connected." : "Optional for draft testing. Required before live submission."
+      },
+      {
+        id: "xsd",
+        label: "FA(3) schema validation",
+        done: false,
+        detail: "Validate each draft invoice against the official CIRFMF FA(3) XSD before submission."
+      }
+    ];
+
+    res.json({
+      complete: items.every((item) => item.done),
+      items
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 apiRouter.post("/review/dismiss", loadShop, async (_req, res, next) => {
   try {
     const shop = res.locals.shop!;
@@ -508,6 +565,33 @@ apiRouter.get("/invoices/:invoiceId/xml", loadShop, async (req, res, next) => {
     res.type("application/xml");
     res.setHeader("Content-Disposition", `attachment; filename="${invoiceFileName(invoice.orderName, invoice.id)}"`);
     res.send(invoice.fa3Xml);
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.get("/invoices/:invoiceId/validate", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const invoiceId = String(req.params.invoiceId);
+    const invoice = await prisma.ksefInvoice.findFirst({
+      where: {
+        id: invoiceId,
+        shopId: shop.id
+      }
+    });
+
+    if (!invoice) {
+      res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
+
+    const validation = await validateFa3XmlAgainstOfficialXsd(invoice.fa3Xml);
+    res.json({
+      invoiceId: invoice.id,
+      orderName: invoice.orderName,
+      validation
+    });
   } catch (error) {
     next(error);
   }
