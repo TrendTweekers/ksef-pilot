@@ -28,6 +28,8 @@ export interface Fa3InvoiceData {
   amountGross: number;
   currency?: string;
   sourceSystem?: string;
+  correctionOfInvoiceNumber?: string;
+  correctionReason?: string;
   lineItems: Fa3LineItem[];
 }
 
@@ -72,6 +74,7 @@ export function validateFa3Input(data: Fa3InvoiceData): Fa3ValidationResult {
   if (!data.buyerName) errors.push("Buyer name is required.");
   if (data.currency && data.currency !== "PLN") errors.push("MVP supports PLN invoices only.");
   if (!data.lineItems.length) errors.push("At least one invoice line item is required.");
+  if (data.invoiceType === "KOR" && !data.correctionReason) errors.push("Correction reason is required.");
 
   const net = data.lineItems.reduce((sum, item) => sum + item.totalNet, 0);
   const vat = data.lineItems.reduce((sum, item) => sum + item.totalVat, 0);
@@ -89,7 +92,7 @@ export function validateFa3Input(data: Fa3InvoiceData): Fa3ValidationResult {
     if (!item.name) errors.push(`Line ${index + 1}: name is required.`);
     if (item.vatRate !== "23") errors.push(`Line ${index + 1}: MVP supports only 23% VAT.`);
     if (item.quantity <= 0) errors.push(`Line ${index + 1}: quantity must be greater than zero.`);
-    if (item.unitPrice < 0) errors.push(`Line ${index + 1}: unit price cannot be negative.`);
+    if (item.unitPrice < 0 && data.invoiceType !== "KOR") errors.push(`Line ${index + 1}: unit price cannot be negative.`);
   }
 
   return { valid: errors.length === 0, errors };
@@ -121,6 +124,12 @@ export function buildFa3Xml(data: Fa3InvoiceData) {
     </fa:FaWiersz>`
     )
     .join("");
+  const correctionXml =
+    invoiceType === "KOR"
+      ? `
+    <fa:PrzyczynaKorekty>${escapeXml(data.correctionReason ?? "Korekta faktury")}</fa:PrzyczynaKorekty>
+    <fa:NrFaKorygowanej>${escapeXml(data.correctionOfInvoiceNumber ?? data.invoiceNumber.replace(/-KOR$/, ""))}</fa:NrFaKorygowanej>`
+      : "";
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <fa:Faktura xmlns:fa="http://crd.gov.pl/wzor/2025/06/25/13775/"
@@ -178,7 +187,7 @@ export function buildFa3Xml(data: Fa3InvoiceData) {
         <fa:P_PMarzyN>1</fa:P_PMarzyN>
       </fa:PMarzy>
     </fa:Adnotacje>
-    <fa:RodzajFaktury>${escapeXml(invoiceType)}</fa:RodzajFaktury>${lineItemsXml}
+    <fa:RodzajFaktury>${escapeXml(invoiceType)}</fa:RodzajFaktury>${correctionXml}${lineItemsXml}
   </fa:Fa>
 </fa:Faktura>`;
 }

@@ -27,10 +27,11 @@ This scaffold starts the MVP with:
 - FA(3) XML validation before submission
 - KSeF test-mode submission workflow and live submission adapter using the KSeF API v2 TypeScript client
 - Retry queue metadata and a Railway-callable retry worker endpoint
+- Linked correction invoice drafts for Shopify refunds or order corrections
 - Embedded Polaris admin shell with Orders, Settings, and Billing views
 - Railway deployment config
 
-The next implementation slices are production token validation hardening, corrections, and final App Store polish.
+The next implementation slices are production token validation hardening, partial correction workflows, and final App Store polish.
 
 ## Setup
 

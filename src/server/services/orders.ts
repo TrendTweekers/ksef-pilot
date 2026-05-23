@@ -458,3 +458,123 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
 
   return { invoice, reused: false };
 }
+
+export async function generateCorrectionForInvoice(shop: Shop, invoiceId: string, reason = "Zwrot lub korekta zamówienia Shopify") {
+  const original = await prisma.ksefInvoice.findFirst({
+    where: {
+      id: invoiceId,
+      shopId: shop.id,
+      correctionOf: null
+    },
+    include: {
+      items: true
+    }
+  });
+
+  if (!original) {
+    throw new Error("Original invoice was not found.");
+  }
+
+  const existing = await prisma.ksefInvoice.findFirst({
+    where: {
+      shopId: shop.id,
+      correctionOf: original.id
+    },
+    orderBy: { createdAt: "desc" },
+    include: { items: true }
+  });
+
+  if (existing) {
+    return { invoice: existing, reused: true };
+  }
+
+  await assertCanGenerateInvoice(shop);
+
+  if (!shop.sellerNip || !shop.sellerName) {
+    throw new Error("Seller NIP and seller name are required in KSeF Settings before correction generation.");
+  }
+
+  const lineItems = original.items.map((item) => {
+    const unitPrice = -roundMoney(Number(item.unitPrice));
+    const totalNet = -roundMoney(Number(item.totalNet));
+    const totalVat = -roundMoney(Number(item.totalVat));
+
+    return {
+      name: `Korekta: ${item.name}`,
+      unit: "szt.",
+      quantity: Math.max(1, item.quantity),
+      unitPrice,
+      vatRate: item.vatRate as "23",
+      totalNet,
+      totalVat,
+      totalGross: roundMoney(totalNet + totalVat)
+    };
+  });
+
+  const amountNet = roundMoney(lineItems.reduce((sum, item) => sum + item.totalNet, 0));
+  const amountVat = roundMoney(lineItems.reduce((sum, item) => sum + item.totalVat, 0));
+  const amountGross = roundMoney(lineItems.reduce((sum, item) => sum + item.totalGross, 0));
+  const issueDate = new Date().toISOString().slice(0, 10);
+  const originalInvoiceNumber = `KSEF-${original.orderName.replace(/[^A-Za-z0-9-]/g, "")}`;
+  const invoiceNumber = `${originalInvoiceNumber}-KOR`;
+
+  const fa3: Fa3InvoiceData = {
+    invoiceNumber,
+    issueDate,
+    saleDate: issueDate,
+    invoiceType: "KOR",
+    placeOfIssue: shop.placeOfIssue ?? "Warszawa",
+    sellerNip: shop.sellerNip,
+    sellerName: shop.sellerName,
+    sellerAddress: shop.sellerAddress ?? shop.placeOfIssue ?? undefined,
+    buyerNip: original.nip,
+    buyerName: original.buyerName,
+    amountNet,
+    amountVat,
+    amountGross,
+    currency: "PLN",
+    sourceSystem: "KSeF Pilot Shopify",
+    correctionOfInvoiceNumber: originalInvoiceNumber,
+    correctionReason: reason,
+    lineItems
+  };
+  const validation = validateFa3Input(fa3);
+
+  if (!validation.valid) {
+    throw new Error(validation.errors.join(" "));
+  }
+
+  const fa3Xml = buildFa3Xml(fa3);
+
+  const correction = await prisma.ksefInvoice.create({
+    data: {
+      shopId: shop.id,
+      orderId: original.orderId,
+      orderName: `${original.orderName} correction`,
+      nip: original.nip,
+      buyerName: original.buyerName,
+      fa3Xml,
+      status: "draft",
+      correctionOf: original.id,
+      totalGross: amountGross,
+      items: {
+        create: lineItems.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          vatRate: item.vatRate,
+          totalNet: item.totalNet,
+          totalVat: item.totalVat
+        }))
+      }
+    },
+    include: { items: true }
+  });
+
+  await prisma.ksefInvoice.update({
+    where: { id: original.id },
+    data: { status: original.status === "submitted" ? "corrected" : original.status }
+  });
+
+  return { invoice: correction, reused: false };
+}

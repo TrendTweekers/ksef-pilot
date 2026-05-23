@@ -50,6 +50,7 @@ interface InvoiceRow {
   buyerName: string;
   nip: string;
   status: string;
+  correctionOf?: string | null;
   ksefNumber?: string;
   upoStatus?: string | null;
   upoFetchedAt?: string | null;
@@ -162,6 +163,7 @@ export function App() {
   const [validatingInvoiceId, setValidatingInvoiceId] = useState<string | null>(null);
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
   const [refreshingStatusInvoiceId, setRefreshingStatusInvoiceId] = useState<string | null>(null);
+  const [correctingInvoiceId, setCorrectingInvoiceId] = useState<string | null>(null);
 
   function apiPath(path: string) {
     const separator = path.includes("?") ? "&" : "?";
@@ -525,6 +527,31 @@ export function App() {
 
   function downloadInvoiceUpo(invoice: InvoiceRow) {
     window.open(apiPath(`/api/invoices/${invoice.id}/upo.xml`), "_blank");
+  }
+
+  async function createCorrection(invoice: InvoiceRow) {
+    setCorrectingInvoiceId(invoice.id);
+    setInvoiceError("");
+    try {
+      const response = await fetch(apiPath(`/api/invoices/${invoice.id}/correction`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: t("invoices.defaultCorrectionReason") })
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? t("invoices.correctionError"));
+      }
+
+      await loadInvoices();
+      void loadBilling();
+      void loadSetupStatus();
+    } catch (error) {
+      setInvoiceError(error instanceof Error ? error.message : t("invoices.correctionError"));
+    } finally {
+      setCorrectingInvoiceId(null);
+    }
   }
 
   async function validateInvoice(invoice: InvoiceRow) {
@@ -1024,6 +1051,7 @@ export function App() {
                                     {invoice.status}
                                   </Badge>
                                   {invoice.submission ? <Badge tone="info">{invoice.submission.mode}</Badge> : null}
+                                  {invoice.correctionOf ? <Badge tone="attention">{t("invoices.correction")}</Badge> : null}
                                 </InlineStack>
                                 <Text as="p" tone="subdued">
                                   {invoice.buyerName} - NIP {invoice.nip} - {Number(invoice.totalGross).toFixed(2)} PLN
@@ -1031,6 +1059,11 @@ export function App() {
                                 {invoice.ksefNumber ? (
                                   <Text as="p" tone="success">
                                     {t("invoices.ksefApproved", { number: invoice.ksefNumber })}
+                                  </Text>
+                                ) : null}
+                                {invoice.correctionOf ? (
+                                  <Text as="p" tone="subdued">
+                                    {t("invoices.correctionOf", { id: invoice.correctionOf.slice(0, 8) })}
                                   </Text>
                                 ) : null}
                                 {invoice.submission?.invoiceReferenceNumber ? (
@@ -1077,6 +1110,11 @@ export function App() {
                                 ) : null}
                                 {invoice.hasUpo ? (
                                   <Button onClick={() => downloadInvoiceUpo(invoice)}>{t("invoices.downloadUpo")}</Button>
+                                ) : null}
+                                {!invoice.correctionOf ? (
+                                  <Button loading={correctingInvoiceId === invoice.id} onClick={() => createCorrection(invoice)}>
+                                    {t("invoices.createCorrection")}
+                                  </Button>
                                 ) : null}
                                 <Button onClick={() => previewInvoice(invoice)}>{t("invoices.previewXml")}</Button>
                                 <Button onClick={() => downloadInvoicePdf(invoice)}>{t("invoices.downloadPdf")}</Button>

@@ -15,7 +15,7 @@ import { env } from "../config/env.js";
 import { billingPlans, getBillingSummary } from "../services/billing.js";
 import { buildFa3Xml, buildSampleFa3Invoice, validateFa3Input } from "../services/fa3.js";
 import { describeSchemaValidation, validateFa3XmlAgainstOfficialXsd } from "../services/fa3Schema.js";
-import { fetchShopifyOrders, generateDraftInvoiceForOrder, saveOrderFlag } from "../services/orders.js";
+import { fetchShopifyOrders, generateCorrectionForInvoice, generateDraftInvoiceForOrder, saveOrderFlag } from "../services/orders.js";
 import { buildInvoicePdf } from "../services/pdf.js";
 import { notifyTelegram } from "../services/telegram.js";
 
@@ -42,6 +42,10 @@ const generateInvoiceSchema = z.object({
   orderId: z.string().min(1),
   buyerNip: z.string().regex(/^\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*$/),
   buyerName: z.string().min(1)
+});
+
+const correctionSchema = z.object({
+  reason: z.string().min(3).max(180).optional()
 });
 
 const invoicePeriodSchema = z.enum(["week", "month", "all"]).default("month");
@@ -113,6 +117,7 @@ function invoiceManifestRows(invoices: Array<{
   buyerName: string;
   nip: string;
   status: string;
+  correctionOf: string | null;
   ksefNumber: string | null;
   totalGross: { toString(): string };
   createdAt: Date;
@@ -123,6 +128,7 @@ function invoiceManifestRows(invoices: Array<{
     nip: invoice.nip,
     gross_pln: invoice.totalGross.toString(),
     status: invoice.status,
+    correction_of: invoice.correctionOf ?? "",
     ksef_number: invoice.ksefNumber ?? "",
     created_at: invoice.createdAt.toISOString(),
     xml_file: invoiceFileName(invoice.orderName, invoice.id)
@@ -131,7 +137,7 @@ function invoiceManifestRows(invoices: Array<{
 
 function invoiceManifestCsv(invoices: Parameters<typeof invoiceManifestRows>[0]) {
   const rows = invoiceManifestRows(invoices);
-  const headers = ["order", "buyer", "nip", "gross_pln", "status", "ksef_number", "created_at", "xml_file"];
+  const headers = ["order", "buyer", "nip", "gross_pln", "status", "correction_of", "ksef_number", "created_at", "xml_file"];
   return [
     headers.map(csvCell).join(","),
     ...rows.map((row) => headers.map((header) => csvCell(row[header as keyof typeof row])).join(","))
@@ -516,6 +522,7 @@ apiRouter.get("/invoices", loadShop, async (req, res, next) => {
           buyerName: invoice.buyerName,
           nip: invoice.nip,
           status: invoice.status,
+          correctionOf: invoice.correctionOf,
           ksefNumber: invoice.ksefNumber,
           upoStatus: invoice.upoStatus,
           upoFetchedAt: invoice.upoFetchedAt,
@@ -689,6 +696,38 @@ apiRouter.post("/invoices/:invoiceId/submit", loadShop, async (req, res, next) =
   }
 });
 
+apiRouter.post("/invoices/:invoiceId/correction", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const invoiceId = String(req.params.invoiceId);
+    const input = correctionSchema.parse(req.body ?? {});
+    const result = await generateCorrectionForInvoice(shop, invoiceId, input.reason);
+
+    res.json({
+      reused: result.reused,
+      invoice: {
+        id: result.invoice.id,
+        orderName: result.invoice.orderName,
+        status: result.invoice.status,
+        correctionOf: result.invoice.correctionOf,
+        totalGross: result.invoice.totalGross,
+        createdAt: result.invoice.createdAt
+      }
+    });
+
+    await notifyTelegram(
+      `KSeF Pilot correction draft: ${shop.domain} ${result.invoice.orderName} ${result.invoice.totalGross} PLN`
+    );
+  } catch (error) {
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
+    next(error);
+  }
+});
+
 apiRouter.post("/invoices/:invoiceId/refresh-status", loadShop, async (req, res, next) => {
   try {
     const shop = res.locals.shop!;
@@ -806,6 +845,7 @@ apiRouter.get("/invoices/:invoiceId", loadShop, async (req, res, next) => {
         nip: invoice.nip,
         fa3Xml: invoice.fa3Xml,
         status: invoice.status,
+        correctionOf: invoice.correctionOf,
         ksefNumber: invoice.ksefNumber,
         upoStatus: invoice.upoStatus,
         upoFetchedAt: invoice.upoFetchedAt,
