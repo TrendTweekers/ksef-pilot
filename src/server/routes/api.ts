@@ -5,11 +5,30 @@ import { encryptSecret } from "../services/crypto.js";
 import { testKsefToken } from "../services/ksef.js";
 import { prisma } from "../config/prisma.js";
 import { buildFa3Xml, buildSampleFa3Invoice, validateFa3Input } from "../services/fa3.js";
+import { fetchShopifyOrders, generateDraftInvoiceForOrder, saveOrderFlag } from "../services/orders.js";
 
 export const apiRouter = Router();
 
 const ksefSettingsSchema = z.object({
-  token: z.string().min(10)
+  token: z.string().min(10).optional(),
+  sellerNip: z.string().optional(),
+  sellerName: z.string().optional(),
+  sellerAddress: z.string().optional(),
+  placeOfIssue: z.string().optional()
+});
+
+const orderFlagSchema = z.object({
+  orderId: z.string().min(1),
+  orderName: z.string().min(1),
+  isB2b: z.boolean(),
+  nip: z.string().optional(),
+  buyerName: z.string().optional()
+});
+
+const generateInvoiceSchema = z.object({
+  orderId: z.string().min(1),
+  buyerNip: z.string().regex(/^\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*$/),
+  buyerName: z.string().min(1)
 });
 
 const fa3LineSchema = z.object({
@@ -96,7 +115,11 @@ apiRouter.get("/ksef/settings", loadShop, async (_req, res) => {
 
   res.json({
     connected: shop.ksefConnected,
-    hasToken: Boolean(shop.ksefToken)
+    hasToken: Boolean(shop.ksefToken),
+    sellerNip: shop.sellerNip ?? "",
+    sellerName: shop.sellerName ?? "",
+    sellerAddress: shop.sellerAddress ?? "",
+    placeOfIssue: shop.placeOfIssue ?? ""
   });
 });
 
@@ -104,20 +127,32 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
   try {
     const shop = res.locals.shop!;
     const input = ksefSettingsSchema.parse(req.body);
-    const encryptedToken = encryptSecret(input.token);
-    const testResult = await testKsefToken(encryptedToken);
+    const encryptedToken = input.token ? encryptSecret(input.token) : undefined;
+    const testResult = encryptedToken ? await testKsefToken(encryptedToken) : null;
 
-    await prisma.shop.update({
+    const updated = await prisma.shop.update({
       where: { id: shop.id },
       data: {
-        ksefToken: encryptedToken,
-        ksefConnected: testResult.connected
+        ...(encryptedToken
+          ? {
+              ksefToken: encryptedToken,
+              ksefConnected: testResult?.connected ?? false
+            }
+          : {}),
+        sellerNip: input.sellerNip?.replace(/\D/g, "") || null,
+        sellerName: input.sellerName?.trim() || null,
+        sellerAddress: input.sellerAddress?.trim() || null,
+        placeOfIssue: input.placeOfIssue?.trim() || null
       }
     });
 
     res.json({
-      connected: testResult.connected,
-      checkedAt: testResult.checkedAt
+      connected: updated.ksefConnected,
+      checkedAt: testResult?.checkedAt,
+      sellerNip: updated.sellerNip ?? "",
+      sellerName: updated.sellerName ?? "",
+      sellerAddress: updated.sellerAddress ?? "",
+      placeOfIssue: updated.placeOfIssue ?? ""
     });
   } catch (error) {
     next(error);
@@ -137,6 +172,56 @@ apiRouter.post("/ksef/test", loadShop, async (req, res, next) => {
     const result = await testKsefToken(token);
     res.json(result);
   } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.get("/orders", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const onlyUnprocessedB2b = req.query.onlyUnprocessedB2b === "true";
+    const orders = await fetchShopifyOrders(shop, onlyUnprocessedB2b);
+
+    res.json({ orders });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.put("/orders/flag", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const input = orderFlagSchema.parse(req.body);
+    const flag = await saveOrderFlag(shop, input);
+
+    res.json({ flag });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post("/orders/generate-invoice", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const input = generateInvoiceSchema.parse(req.body);
+    const result = await generateDraftInvoiceForOrder(shop, input);
+
+    res.json({
+      reused: result.reused,
+      invoice: {
+        id: result.invoice.id,
+        orderName: result.invoice.orderName,
+        status: result.invoice.status,
+        totalGross: result.invoice.totalGross,
+        createdAt: result.invoice.createdAt
+      }
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
     next(error);
   }
 });

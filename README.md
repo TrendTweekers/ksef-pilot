@@ -20,10 +20,12 @@ This scaffold starts the MVP with:
 - Prisma schema for shops, sessions, B2B order flags, invoices, invoice items, and retry metadata
 - AES-256-GCM encryption helpers for merchant KSeF tokens
 - KSeF Settings UI for saving and testing a token
+- Seller invoice settings for FA(3) generation
+- Shopify order import, manual B2B flagging, buyer NIP capture, and draft FA(3) invoice generation
 - Embedded Polaris admin shell with Orders, Settings, and Billing views
 - Railway deployment config
 
-The next implementation slices are Shopify order import/manual B2B flagging, FA(3) XML generation with official XSD validation, KSeF submission retries, PDF/QR output, corrections, and billing enforcement.
+The next implementation slices are official XSD validation, KSeF submission retries, PDF/QR output, corrections, and billing enforcement.
 
 ## Setup
 
@@ -51,6 +53,7 @@ The next implementation slices are Shopify order import/manual B2B flagging, FA(
 
    - `SHOPIFY_API_KEY`
    - `SHOPIFY_API_SECRET`
+   - `SHOPIFY_API_VERSION` (defaults to `2026-04`)
    - `APP_URL`
    - Redirect URL: `${APP_URL}/auth/callback`
 

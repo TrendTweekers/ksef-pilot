@@ -13,6 +13,10 @@ model Shop {
   accessToken   String
   ksefToken     String?
   ksefConnected Boolean   @default(false)
+  sellerNip     String?
+  sellerName    String?
+  sellerAddress String?
+  placeOfIssue  String?
   plan          String    @default("free")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

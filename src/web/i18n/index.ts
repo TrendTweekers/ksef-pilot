@@ -27,15 +27,29 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           title: "KSeF Settings",
           tokenLabel: "KSeF API token",
           tokenHelp: "Paste the token generated at ksef.podatki.gov.pl. It is encrypted before storage.",
+          sellerNip: "Seller NIP",
+          sellerName: "Seller legal name",
+          sellerAddress: "Seller address",
+          placeOfIssue: "Place of issue",
           test: "Test connection",
-          save: "Save token",
+          save: "Save settings",
           connected: "Connected",
           notConnected: "Not connected"
         },
         orders: {
           title: "B2B orders",
           empty: "Your Shopify orders will appear here. Mark B2B orders, add buyer NIP, then generate a KSeF invoice.",
-          filter: "Unprocessed B2B only"
+          filter: "Unprocessed B2B only",
+          refresh: "Refresh orders",
+          loading: "Loading orders",
+          buyerNip: "Buyer NIP",
+          buyerName: "Buyer name",
+          saveFlag: "Save B2B flag",
+          generate: "Generate invoice",
+          loadError: "Could not load Shopify orders. Check that the app has read_orders access and the store is installed.",
+          saveError: "Could not save the B2B flag.",
+          generateError: "Could not generate the invoice.",
+          invoiceCreated: "Draft invoice created for {{orderName}}."
         }
       }
     },
@@ -57,15 +71,29 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           title: "Ustawienia KSeF",
           tokenLabel: "Token API KSeF",
           tokenHelp: "Wklej token wygenerowany na ksef.podatki.gov.pl. Przechowujemy go w formie szyfrowanej.",
+          sellerNip: "NIP sprzedawcy",
+          sellerName: "Nazwa sprzedawcy",
+          sellerAddress: "Adres sprzedawcy",
+          placeOfIssue: "Miejsce wystawienia",
           test: "Testuj połączenie",
-          save: "Zapisz token",
+          save: "Zapisz ustawienia",
           connected: "Połączono",
           notConnected: "Nie połączono"
         },
         orders: {
           title: "Zamówienia B2B",
           empty: "Tutaj pojawią się zamówienia Shopify. Oznacz B2B, dodaj NIP nabywcy i wygeneruj fakturę KSeF.",
-          filter: "Tylko nieprzetworzone B2B"
+          filter: "Tylko nieprzetworzone B2B",
+          refresh: "Odśwież zamówienia",
+          loading: "Ładowanie zamówień",
+          buyerNip: "NIP nabywcy",
+          buyerName: "Nazwa nabywcy",
+          saveFlag: "Zapisz B2B",
+          generate: "Generuj fakturę",
+          loadError: "Nie udało się pobrać zamówień Shopify. Sprawdź instalację aplikacji i dostęp read_orders.",
+          saveError: "Nie udało się zapisać oznaczenia B2B.",
+          generateError: "Nie udało się wygenerować faktury.",
+          invoiceCreated: "Utworzono szkic faktury dla {{orderName}}."
         }
       }
     }

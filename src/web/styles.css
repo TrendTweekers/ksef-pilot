@@ -15,3 +15,24 @@ body {
   border: 1px solid #dcdfe4;
   border-radius: 8px;
 }
+
+.order-row {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid #dcdfe4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.order-fields {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(220px, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .order-fields {
+    grid-template-columns: 1fr;
+  }
+}

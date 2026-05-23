@@ -65,3 +65,43 @@ export async function exchangeCodeForAccessToken(shop: string, code: string) {
   const payload = (await response.json()) as { access_token: string; scope: string };
   return payload;
 }
+
+const shopifyApiVersion = process.env.SHOPIFY_API_VERSION ?? "2026-04";
+
+interface ShopifyGraphqlResponse<T> {
+  data?: T;
+  errors?: Array<{ message: string }>;
+}
+
+export async function shopifyGraphql<T>(
+  shop: string,
+  accessToken: string,
+  query: string,
+  variables?: Record<string, unknown>
+) {
+  const response = await fetch(`https://${shop}/admin/api/${shopifyApiVersion}/graphql.json`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "X-Shopify-Access-Token": accessToken
+    },
+    body: JSON.stringify({ query, variables })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Shopify Admin API request failed with ${response.status}`);
+  }
+
+  const payload = (await response.json()) as ShopifyGraphqlResponse<T>;
+
+  if (payload.errors?.length) {
+    throw new Error(payload.errors.map((error) => error.message).join(" "));
+  }
+
+  if (!payload.data) {
+    throw new Error("Shopify Admin API returned an empty response.");
+  }
+
+  return payload.data;
+}
