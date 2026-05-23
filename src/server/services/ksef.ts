@@ -1,16 +1,54 @@
 import crypto from "node:crypto";
 import type { KsefInvoice, Shop } from "@prisma/client";
+import {
+  FORM_CODES,
+  KSeFApiError,
+  KSeFBadRequestError,
+  KSeFClient,
+  KSeFForbiddenError,
+  KSeFRateLimitError,
+  KSeFUnauthorizedError,
+  openOnlineSession,
+  type EnvironmentName
+} from "ksef-client-ts";
 import { env } from "../config/env.js";
 import { prisma } from "../config/prisma.js";
 import { decryptSecret } from "./crypto.js";
 import { validateFa3XmlAgainstOfficialXsd } from "./fa3Schema.js";
 
-export async function testKsefToken(encryptedToken: string) {
+const maxAttempts = 3;
+
+export async function testKsefToken(encryptedToken: string, sellerNip?: string | null) {
   const token = decryptSecret(encryptedToken);
+  const checkedAt = new Date().toISOString();
+
+  if (env.KSEF_LIVE_SUBMISSION_ENABLED && sellerNip) {
+    try {
+      const client = createClient();
+      await client.crypto.init();
+      const login = await client.loginWithToken(token, sellerNip.replace(/\D/g, ""));
+      await client.logout().catch(() => undefined);
+
+      return {
+        connected: true,
+        checkedAt,
+        environment: ksefEnvironment(),
+        clientIp: login.clientIp
+      };
+    } catch (error) {
+      return {
+        connected: false,
+        checkedAt,
+        environment: ksefEnvironment(),
+        error: errorMessage(error)
+      };
+    }
+  }
 
   return {
     connected: token.trim().length > 0,
-    checkedAt: new Date().toISOString()
+    checkedAt,
+    environment: "LOCAL"
   };
 }
 
@@ -27,15 +65,99 @@ function retryDelay(attempts: number) {
   return new Date(Date.now() + minutes * 60 * 1000);
 }
 
+function ksefEnvironment(): EnvironmentName {
+  if (env.KSEF_API_BASE_URL?.includes("api-demo.ksef")) {
+    return "DEMO";
+  }
+
+  if (env.KSEF_API_BASE_URL?.includes("api.ksef.mf.gov.pl") && !env.KSEF_API_BASE_URL.includes("test")) {
+    return "PROD";
+  }
+
+  return env.KSEF_ENVIRONMENT;
+}
+
+function createClient() {
+  return new KSeFClient({
+    environment: ksefEnvironment(),
+    ...(env.KSEF_API_BASE_URL ? { baseUrl: env.KSEF_API_BASE_URL } : {}),
+    timeout: 30_000,
+    retry: {
+      maxRetries: 2,
+      baseDelayMs: 1_000,
+      maxDelayMs: 10_000
+    },
+    circuitBreaker: {
+      failureThreshold: 3,
+      openMs: 60_000,
+      scope: "global"
+    }
+  });
+}
+
+function technicalCodeForError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lower = message.toLowerCase();
+
+  if (error instanceof KSeFUnauthorizedError || lower.includes("unauthorized") || lower.includes("token")) {
+    return "ERR_KSEF_001";
+  }
+
+  if (lower.includes("duplicate") || lower.includes("duplikat") || lower.includes("already")) {
+    return "ERR_KSEF_002";
+  }
+
+  if (error instanceof KSeFRateLimitError || lower.includes("rate limit") || lower.includes("too many")) {
+    return "ERR_KSEF_003";
+  }
+
+  if (error instanceof KSeFBadRequestError || lower.includes("validation") || lower.includes("schema")) {
+    return "ERR_KSEF_005";
+  }
+
+  if (error instanceof KSeFForbiddenError || lower.includes("forbidden") || lower.includes("permission")) {
+    return "ERR_KSEF_006";
+  }
+
+  return "ERR_KSEF_004";
+}
+
+function errorMessage(error: unknown) {
+  if (error instanceof KSeFApiError) {
+    return `${technicalCodeForError(error)}: ${error.message}`;
+  }
+
+  if (error instanceof Error) {
+    return `${technicalCodeForError(error)}: ${error.message}`;
+  }
+
+  return `${technicalCodeForError(error)}: ${String(error)}`;
+}
+
+function retryAfter(error: unknown, attempts: number) {
+  if (error instanceof KSeFRateLimitError) {
+    if (error.retryAfterDate) {
+      return error.retryAfterDate;
+    }
+
+    if (error.retryAfterSeconds) {
+      return new Date(Date.now() + error.retryAfterSeconds * 1000);
+    }
+  }
+
+  return retryDelay(attempts);
+}
+
 async function createFailedSubmission(shop: Shop, invoice: KsefInvoice, error: string, attempts = 1) {
+  const retryable = error.startsWith("ERR_KSEF_003") || error.startsWith("ERR_KSEF_004");
   const submission = await prisma.ksefSubmission.create({
     data: {
       shopId: shop.id,
       invoiceId: invoice.id,
       mode: shop.ksefTestMode ? "test" : "live",
-      status: attempts >= 3 ? "failed" : "retrying",
+      status: retryable && attempts < maxAttempts ? "retrying" : "failed",
       attempts,
-      nextRetryAt: attempts >= 3 ? null : retryDelay(attempts),
+      nextRetryAt: retryable && attempts < maxAttempts ? retryDelay(attempts) : null,
       lastError: error,
       requestHash: xmlHash(invoice.fa3Xml)
     }
@@ -96,19 +218,122 @@ async function submitInvoiceInTestMode(shop: Shop, invoice: KsefInvoice) {
 }
 
 async function submitInvoiceLive(shop: Shop, invoice: KsefInvoice) {
+  const attempts = invoice.retryCount + 1;
+
   if (!env.KSEF_LIVE_SUBMISSION_ENABLED) {
     return createFailedSubmission(
       shop,
       invoice,
-      "Live KSeF submission is disabled. Keep test mode on until KSeF auth, encryption, and online session endpoints are configured."
+      "ERR_KSEF_001: Live KSeF submission is disabled. Set KSEF_LIVE_SUBMISSION_ENABLED=true only after testing with a real KSeF test/demo token.",
+      attempts
     );
   }
 
   if (!shop.ksefToken) {
-    return createFailedSubmission(shop, invoice, "KSeF token is required for live submission.");
+    return createFailedSubmission(shop, invoice, "ERR_KSEF_001: KSeF token is required for live submission.", attempts);
   }
 
-  throw new Error("Live KSeF submission client is not implemented yet.");
+  if (!shop.sellerNip) {
+    return createFailedSubmission(shop, invoice, "ERR_KSEF_006: Seller NIP is required for live KSeF submission.", attempts);
+  }
+
+  const requestHash = xmlHash(invoice.fa3Xml);
+  const submission = await prisma.ksefSubmission.create({
+    data: {
+      shopId: shop.id,
+      invoiceId: invoice.id,
+      mode: "live",
+      status: "processing",
+      attempts,
+      requestHash,
+      responsePayload: {
+        environment: ksefEnvironment(),
+        startedAt: new Date().toISOString()
+      }
+    }
+  });
+
+  try {
+    const token = decryptSecret(shop.ksefToken);
+    const client = createClient();
+    await client.crypto.init();
+    await client.loginWithToken(token, shop.sellerNip);
+
+    const session = await openOnlineSession(client, {
+      formCode: FORM_CODES.FA_3,
+      validate: false
+    });
+
+    let invoiceReferenceNumber: string | null = null;
+    try {
+      invoiceReferenceNumber = await session.sendInvoice(invoice.fa3Xml);
+    } finally {
+      await session.close().catch(() => undefined);
+    }
+
+    const updatedSubmission = await prisma.ksefSubmission.update({
+      where: { id: submission.id },
+      data: {
+        status: "submitted",
+        sessionReferenceNumber: session.sessionRef,
+        invoiceReferenceNumber,
+        lastError: null,
+        responsePayload: {
+          environment: ksefEnvironment(),
+          sessionReferenceNumber: session.sessionRef,
+          invoiceReferenceNumber,
+          message:
+            "Invoice was accepted into the KSeF online session. KSeF number/UPO status can be refreshed after government processing completes."
+        },
+        submittedAt: new Date(),
+        nextRetryAt: null
+      }
+    });
+
+    await prisma.ksefInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        status: "submitted",
+        ksefSessionRef: session.sessionRef,
+        submittedAt: new Date(),
+        retryCount: 0,
+        nextRetryAt: null,
+        lastError: null
+      }
+    });
+
+    return updatedSubmission;
+  } catch (error) {
+    const lastError = errorMessage(error);
+    const retryable = lastError.startsWith("ERR_KSEF_003") || lastError.startsWith("ERR_KSEF_004");
+    const nextRetryAt = retryable && attempts < maxAttempts ? retryAfter(error, attempts) : null;
+    const status = nextRetryAt ? "retrying" : "failed";
+
+    const updatedSubmission = await prisma.ksefSubmission.update({
+      where: { id: submission.id },
+      data: {
+        status,
+        nextRetryAt,
+        lastError,
+        responsePayload: {
+          environment: ksefEnvironment(),
+          error: lastError
+        }
+      }
+    });
+
+    await prisma.ksefInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        status: status === "retrying" ? "retrying" : "error",
+        retryCount: attempts,
+        nextRetryAt,
+        lastError
+      }
+    });
+
+    return updatedSubmission;
+  }
 }
 
 export async function submitInvoiceToKsef(shop: Shop, invoiceId: string) {
@@ -151,4 +376,45 @@ export async function submitInvoiceToKsef(shop: Shop, invoiceId: string) {
   });
 
   return { invoice: updatedInvoice, submission, reused: false };
+}
+
+export async function processDueKsefRetries(limit = 10) {
+  const dueInvoices = await prisma.ksefInvoice.findMany({
+    where: {
+      status: "retrying",
+      ksefNumber: null,
+      nextRetryAt: {
+        lte: new Date()
+      }
+    },
+    include: {
+      shop: true
+    },
+    orderBy: {
+      nextRetryAt: "asc"
+    },
+    take: limit
+  });
+
+  const results = [];
+  for (const invoice of dueInvoices) {
+    if (invoice.shop.ksefTestMode) {
+      results.push({ invoiceId: invoice.id, skipped: true, reason: "Shop is in test mode." });
+      continue;
+    }
+
+    const submission = await submitInvoiceLive(invoice.shop, invoice);
+    results.push({
+      invoiceId: invoice.id,
+      orderName: invoice.orderName,
+      submissionId: submission.id,
+      status: submission.status,
+      nextRetryAt: submission.nextRetryAt
+    });
+  }
+
+  return {
+    processed: results.length,
+    results
+  };
 }

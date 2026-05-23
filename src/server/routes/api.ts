@@ -3,7 +3,7 @@ import JSZip from "jszip";
 import { z } from "zod";
 import { loadShop } from "../middleware/shop.js";
 import { encryptSecret } from "../services/crypto.js";
-import { submitInvoiceToKsef, testKsefToken } from "../services/ksef.js";
+import { processDueKsefRetries, submitInvoiceToKsef, testKsefToken } from "../services/ksef.js";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
 import { billingPlans, getBillingSummary } from "../services/billing.js";
@@ -207,7 +207,8 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
     const shop = res.locals.shop!;
     const input = ksefSettingsSchema.parse(req.body);
     const encryptedToken = input.token ? encryptSecret(input.token) : undefined;
-    const testResult = encryptedToken ? await testKsefToken(encryptedToken) : null;
+    const sellerNip = input.sellerNip?.replace(/\D/g, "") || shop.sellerNip;
+    const testResult = encryptedToken ? await testKsefToken(encryptedToken, sellerNip) : null;
 
     const updated = await prisma.shop.update({
       where: { id: shop.id },
@@ -218,7 +219,7 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
               ksefConnected: testResult?.connected ?? false
             }
           : {}),
-        sellerNip: input.sellerNip?.replace(/\D/g, "") || null,
+        sellerNip: sellerNip || null,
         sellerName: input.sellerName?.trim() || null,
         sellerAddress: input.sellerAddress?.trim() || null,
         placeOfIssue: input.placeOfIssue?.trim() || null,
@@ -244,14 +245,39 @@ apiRouter.post("/ksef/test", loadShop, async (req, res, next) => {
   try {
     const shop = res.locals.shop!;
     const token = typeof req.body?.token === "string" ? encryptSecret(req.body.token) : shop.ksefToken;
+    const sellerNip = typeof req.body?.sellerNip === "string" ? req.body.sellerNip : shop.sellerNip;
 
     if (!token) {
       res.status(400).json({ error: "KSeF token is required" });
       return;
     }
 
-    const result = await testKsefToken(token);
+    const result = await testKsefToken(token, sellerNip);
     res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post("/ksef/retry-due", async (req, res, next) => {
+  try {
+    if (!env.KSEF_WORKER_SECRET && env.NODE_ENV === "production") {
+      res.status(503).json({ error: "KSEF_WORKER_SECRET is required in production." });
+      return;
+    }
+
+    if (env.KSEF_WORKER_SECRET && req.header("authorization") !== `Bearer ${env.KSEF_WORKER_SECRET}`) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const limit = z.coerce.number().int().min(1).max(50).default(10).parse(req.query.limit ?? 10);
+    const result = await processDueKsefRetries(limit);
+    res.json(result);
+
+    if (result.processed > 0) {
+      await notifyTelegram(`KSeF Pilot retry worker: processed ${result.processed} queued submission(s).`);
+    }
   } catch (error) {
     next(error);
   }

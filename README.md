@@ -4,6 +4,8 @@
 
 Automate Polish KSeF e-invoices for B2B Shopify orders. Built by FakturaFlow.
 
+KSeF Pilot is built for everyday Shopify sellers, not accounting teams. The merchant marks B2B orders, keeps buyer NIPs on file, and can either export accountant packets or submit validated invoices to KSeF when live submission is enabled.
+
 ## Stack
 
 - Backend: Express.js + TypeScript
@@ -22,10 +24,13 @@ This scaffold starts the MVP with:
 - KSeF Settings UI for saving and testing a token
 - Seller invoice settings for FA(3) generation
 - Shopify order import, manual B2B flagging, buyer NIP capture, and draft FA(3) invoice generation
+- FA(3) XML validation before submission
+- KSeF test-mode submission workflow and live submission adapter using the KSeF API v2 TypeScript client
+- Retry queue metadata and a Railway-callable retry worker endpoint
 - Embedded Polaris admin shell with Orders, Settings, and Billing views
 - Railway deployment config
 
-The next implementation slices are official XSD validation, KSeF submission retries, PDF/QR output, corrections, and billing enforcement.
+The next implementation slices are KSeF status/UPO refresh, production token validation hardening, corrections, and final App Store polish.
 
 ## Setup
 
@@ -91,7 +96,30 @@ You can test the current MVP without sending anything real to KSeF:
 4. Leave the KSeF API token empty.
 5. Open Orders, mark the order as B2B, enter a fake buyer NIP such as `9876543210`, and generate the invoice.
 
-At this stage, "Generate invoice" creates only a local draft invoice and FA(3) XML in the app database. It does not submit to KSeF. The public SVG app icon is available at `public/app-icon.svg` for upload in the Shopify app dashboard.
+At this stage, "Generate invoice" creates only a local draft invoice and FA(3) XML in the app database. If KSeF Settings remains in test mode, "Submit to KSeF" creates a local fake KSeF reference number and does not call the government API. The public SVG app icon is available at `public/app-icon.svg` for upload in the Shopify app dashboard.
+
+## Live KSeF Submission
+
+Live submission is disabled by default. To test with a real KSeF test/demo token:
+
+```text
+KSEF_ENVIRONMENT=TEST
+KSEF_LIVE_SUBMISSION_ENABLED=true
+KSEF_WORKER_SECRET=generate-a-long-random-secret
+```
+
+Optional base URL override:
+
+```text
+KSEF_API_BASE_URL=https://api-test.ksef.mf.gov.pl
+```
+
+When live mode is enabled, "Test connection" authenticates against KSeF if a seller NIP is saved. When a shop then turns off "Safe test mode", KSeF Pilot decrypts the merchant token, authenticates for the seller NIP, opens an online FA(3) session, sends the validated XML, stores the session/invoice reference, and queues retryable failures. Railway can trigger retries by POSTing to:
+
+```text
+POST /api/ksef/retry-due
+Authorization: Bearer <KSEF_WORKER_SECRET>
+```
 
 ## Critical Compliance Notes
 

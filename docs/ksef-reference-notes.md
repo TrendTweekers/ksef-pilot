@@ -14,9 +14,16 @@ Reference sources reviewed for KSeF Pilot:
 - `supabase/functions/ksef-queue-worker/index.ts`: reference for retries, stale processing cleanup, and one-invoice-per-seller pacing.
 - `src/services/ksef/errorTranslator.ts`: useful merchant-facing error translation patterns.
 
+## Ported Into KSeF Pilot
+
+- `ksef-client-ts@0.8.0` is now installed for the Node/Express app.
+- Live submission mirrors the FakturaFlow flow at a Shopify-safe level: token auth, online FA(3) session, invoice send, session close, reference storage, and retryable error capture.
+- The Railway retry hook is intentionally small and queue-driven. It processes due retrying invoices and leaves the merchant UI focused on clear order/invoice actions.
+
 ## Decisions For Shopify App
 
 - Keep KSeF Pilot simple for everyday Shopify merchants. Do not copy the accounting-office cockpit UI.
+- The app is not aimed at accountants. Accountants are a downstream reviewer/export recipient; the primary user is the Shopify seller who wants KSeF handled without learning an accounting cockpit.
 - Use FA(3) generation logic and KSeF flow learnings from FakturaFlow.
 - Use Shopify order data as the source, with manual B2B/NIP flags in MVP.
 - Keep FakturaFlow as the trust/brand layer: "Built by FakturaFlow."
