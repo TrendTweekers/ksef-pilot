@@ -355,6 +355,10 @@ export function App() {
     window.open(apiPath(`/api/invoices/${invoice.id}/xml`), "_blank");
   }
 
+  function downloadInvoicePdf(invoice: InvoiceRow) {
+    window.open(apiPath(`/api/invoices/${invoice.id}/pdf`), "_blank");
+  }
+
   function downloadInvoiceZip() {
     window.open(apiPath(`/api/invoices/export.zip?period=${invoicePeriod}`), "_blank");
   }
@@ -642,7 +646,7 @@ export function App() {
                   {view === "invoices" ? (
                     <BlockStack gap="400">
                       <Banner tone="info">
-                        Drafts are local FA(3) XML files. The ZIP includes XML files plus a CSV manifest for accountant review before any KSeF submission flow is enabled.
+                        Drafts are local FA(3) XML files. The ZIP includes XML, PDF previews, and a CSV manifest for accountant review before any KSeF submission flow is enabled.
                       </Banner>
                       {invoiceError ? <Banner tone="critical">{invoiceError}</Banner> : null}
                       <InlineStack align="space-between" blockAlign="end" gap="300">
@@ -691,7 +695,9 @@ export function App() {
                                   <Text as="h3" variant="headingMd">
                                     {invoice.orderName}
                                   </Text>
-                                  <Badge tone={invoice.status === "draft" ? "info" : "success"}>{invoice.status}</Badge>
+                                  <Badge tone={invoice.status === "draft" ? "info" : invoice.status === "exported" ? "attention" : "success"}>
+                                    {invoice.status}
+                                  </Badge>
                                 </InlineStack>
                                 <Text as="p" tone="subdued">
                                   {invoice.buyerName} - NIP {invoice.nip} - {Number(invoice.totalGross).toFixed(2)} PLN
@@ -703,6 +709,7 @@ export function App() {
                               </BlockStack>
                               <InlineStack gap="200">
                                 <Button onClick={() => previewInvoice(invoice)}>Preview XML</Button>
+                                <Button onClick={() => downloadInvoicePdf(invoice)}>Download PDF</Button>
                                 <Button variant="primary" onClick={() => downloadInvoice(invoice)}>
                                   Download XML
                                 </Button>

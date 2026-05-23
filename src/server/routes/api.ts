@@ -6,7 +6,9 @@ import { encryptSecret } from "../services/crypto.js";
 import { testKsefToken } from "../services/ksef.js";
 import { prisma } from "../config/prisma.js";
 import { buildFa3Xml, buildSampleFa3Invoice, validateFa3Input } from "../services/fa3.js";
+import { describeSchemaValidation } from "../services/fa3Schema.js";
 import { fetchShopifyOrders, generateDraftInvoiceForOrder, saveOrderFlag } from "../services/orders.js";
+import { buildInvoicePdf } from "../services/pdf.js";
 
 export const apiRouter = Router();
 
@@ -85,6 +87,11 @@ function invoiceFileName(orderName: string, invoiceId: string) {
   return `${safeOrderName}-${invoiceId.slice(0, 8)}.xml`;
 }
 
+function invoicePdfFileName(orderName: string, invoiceId: string) {
+  const safeOrderName = orderName.replace(/[^A-Za-z0-9-]/g, "") || "order";
+  return `${safeOrderName}-${invoiceId.slice(0, 8)}.pdf`;
+}
+
 function csvCell(value: unknown) {
   const text = String(value ?? "");
   return `"${text.replace(/"/g, '""')}"`;
@@ -136,6 +143,10 @@ apiRouter.get("/config", (_req, res) => {
     description:
       "Automate Polish KSeF e-invoices for B2B Shopify orders. Built by FakturaFlow."
   });
+});
+
+apiRouter.get("/ksef/fa3/schema", (_req, res) => {
+  res.json(describeSchemaValidation());
 });
 
 apiRouter.get("/ksef/fa3/sample", (_req, res) => {
@@ -340,6 +351,10 @@ apiRouter.get("/invoices/export.zip", loadShop, async (req, res, next) => {
         shopId: shop.id,
         ...(Object.keys(createdAt).length ? { createdAt } : {})
       },
+      include: {
+        items: true,
+        shop: true
+      },
       orderBy: { createdAt: "desc" }
     });
 
@@ -348,10 +363,22 @@ apiRouter.get("/invoices/export.zip", loadShop, async (req, res, next) => {
 
     for (const invoice of invoices) {
       zip.file(invoiceFileName(invoice.orderName, invoice.id), invoice.fa3Xml);
+      zip.file(`pdf/${invoicePdfFileName(invoice.orderName, invoice.id)}`, await buildInvoicePdf(invoice));
     }
 
     zip.file("manifest.json", JSON.stringify(manifest, null, 2));
     zip.file("manifest.csv", invoiceManifestCsv(invoices));
+
+    if (invoices.length) {
+      await prisma.ksefInvoice.updateMany({
+        where: {
+          shopId: shop.id,
+          id: { in: invoices.map((invoice) => invoice.id) },
+          status: "draft"
+        },
+        data: { status: "exported" }
+      });
+    }
 
     const content = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
     const stamp = new Date().toISOString().slice(0, 10);
@@ -382,6 +409,35 @@ apiRouter.get("/invoices/:invoiceId/xml", loadShop, async (req, res, next) => {
     res.type("application/xml");
     res.setHeader("Content-Disposition", `attachment; filename="${invoiceFileName(invoice.orderName, invoice.id)}"`);
     res.send(invoice.fa3Xml);
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.get("/invoices/:invoiceId/pdf", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const invoiceId = String(req.params.invoiceId);
+    const invoice = await prisma.ksefInvoice.findFirst({
+      where: {
+        id: invoiceId,
+        shopId: shop.id
+      },
+      include: {
+        items: true,
+        shop: true
+      }
+    });
+
+    if (!invoice) {
+      res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
+
+    const pdf = await buildInvoicePdf(invoice);
+    res.type("application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${invoicePdfFileName(invoice.orderName, invoice.id)}"`);
+    res.send(pdf);
   } catch (error) {
     next(error);
   }
