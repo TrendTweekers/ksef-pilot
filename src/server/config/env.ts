@@ -11,6 +11,7 @@ const envSchema = z.object({
   SHOPIFY_SCOPES: z.string().default("read_orders,read_customers,read_products"),
   ENCRYPTION_KEY: z.string().min(32),
   KSEF_API_BASE_URL: z.string().url().default("https://ksef-test.mf.gov.pl"),
+  ALLOW_NON_PLN_TEST_INVOICES: z.coerce.boolean().default(false),
   RESEND_API_KEY: z.string().optional()
 });
 

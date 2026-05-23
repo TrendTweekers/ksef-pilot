@@ -1,5 +1,6 @@
 import type { Shop } from "@prisma/client";
 import { prisma } from "../config/prisma.js";
+import { env } from "../config/env.js";
 import type { Fa3InvoiceData } from "./fa3.js";
 import { buildFa3Xml, validateFa3Input } from "./fa3.js";
 import { shopifyGraphql } from "./shopify.js";
@@ -216,6 +217,12 @@ function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyer
     throw new Error("Seller NIP and seller name are required in KSeF Settings before invoice generation.");
   }
 
+  if (order.currencyCode !== "PLN" && !env.ALLOW_NON_PLN_TEST_INVOICES) {
+    throw new Error("MVP supports PLN invoices only.");
+  }
+
+  const invoiceCurrency = order.currencyCode === "PLN" ? "PLN" : "PLN";
+
   const buyer = orderBuyer(order);
   const lineItems = order.lineItems.nodes.map((line) => {
     const gross = roundMoney(toNumber(line.discountedTotalSet.shopMoney.amount));
@@ -253,7 +260,7 @@ function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyer
     amountNet,
     amountVat,
     amountGross,
-    currency: order.currencyCode,
+    currency: invoiceCurrency,
     sourceSystem: "KSeF Pilot Shopify",
     lineItems
   };

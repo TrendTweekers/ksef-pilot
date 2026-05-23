@@ -40,6 +40,12 @@ interface OrderRow {
   ksefNumber?: string;
 }
 
+function currencyWarning(order: OrderRow) {
+  return order.currency === "PLN"
+    ? ""
+    : `Dev mode: this ${order.currency} test order will be drafted as PLN for FA(3) XML.`;
+}
+
 function useShop() {
   return useMemo(() => new URLSearchParams(window.location.search).get("shop") ?? "", []);
 }
@@ -455,6 +461,11 @@ export function App() {
                                 autoComplete="organization"
                               />
                             </div>
+                            {currencyWarning(order) ? (
+                              <Text as="p" tone="subdued">
+                                {currencyWarning(order)}
+                              </Text>
+                            ) : null}
                             <InlineStack gap="200">
                               <Button loading={actionOrderId === order.id} onClick={() => saveFlag(order)}>
                                 {t("orders.saveFlag")}
