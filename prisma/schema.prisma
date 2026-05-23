@@ -63,12 +63,16 @@ model KsefInvoice {
   buyerName     String
   fa3Xml        String
   ksefNumber    String?
+  ksefSessionRef String?
   status        String
   correctionOf  String?
   totalGross    Decimal       @db.Decimal(12, 2)
   retryCount    Int           @default(0)
   nextRetryAt   DateTime?
   lastError     String?
+  upoXml        String?
+  upoStatus     String?
+  upoFetchedAt  DateTime?
   createdAt     DateTime      @default(now())
   submittedAt   DateTime?
 

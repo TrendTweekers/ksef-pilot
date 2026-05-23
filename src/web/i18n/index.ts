@@ -19,8 +19,9 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
         home: {
           title: "KSeF Pilot",
           tagline: "Polish e-invoices for Shopify",
+          builtBy: "Built by FakturaFlow for Shopify merchants selling B2B in Poland.",
           description:
-            "Automate Polish KSeF e-invoices for B2B Shopify orders. Built by FakturaFlow."
+            "Turn B2B Shopify orders into Polish KSeF e-invoices without turning your store into an accounting cockpit. Built by FakturaFlow."
         },
         settings: {
           title: "KSeF Settings",
@@ -33,7 +34,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
         },
         orders: {
           title: "B2B orders",
-          empty: "Order import will appear here after Shopify OAuth is connected.",
+          empty: "Your Shopify orders will appear here. Mark B2B orders, add buyer NIP, then generate a KSeF invoice.",
           filter: "Unprocessed B2B only"
         }
       }
@@ -48,8 +49,9 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
         home: {
           title: "KSeF Pilot",
           tagline: "Polskie e-faktury dla Shopify",
+          builtBy: "Stworzone przez FakturaFlow dla sprzedawców Shopify obsługujących B2B w Polsce.",
           description:
-            "Automatyzuj polskie e-faktury KSeF dla zamówień B2B w Shopify. Stworzone przez FakturaFlow."
+            "Zamieniaj zamówienia B2B z Shopify w polskie e-faktury KSeF bez ciężkiego systemu księgowego. Stworzone przez FakturaFlow."
         },
         settings: {
           title: "Ustawienia KSeF",
@@ -62,7 +64,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
         },
         orders: {
           title: "Zamówienia B2B",
-          empty: "Import zamówień pojawi się tutaj po połączeniu OAuth Shopify.",
+          empty: "Tutaj pojawią się zamówienia Shopify. Oznacz B2B, dodaj NIP nabywcy i wygeneruj fakturę KSeF.",
           filter: "Tylko nieprzetworzone B2B"
         }
       }

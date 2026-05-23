@@ -64,6 +64,15 @@ export function App() {
         <Layout>
           <Layout.Section>
             <BlockStack gap="400">
+              <InlineStack gap="300" blockAlign="center">
+                <img className="app-icon" src="/app-icon.svg" alt="" />
+                <BlockStack gap="050">
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    {t("home.builtBy")}
+                  </Text>
+                </BlockStack>
+              </InlineStack>
+
               <Tabs tabs={tabs} selected={selectedTab} onSelect={(index) => setView(tabs[index].id as View)} />
 
               <Card>

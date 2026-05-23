@@ -8,3 +8,10 @@ body {
   margin: 0;
   background: #f6f6f7;
 }
+
+.app-icon {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #dcdfe4;
+  border-radius: 8px;
+}
