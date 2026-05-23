@@ -1,4 +1,5 @@
 import { Router } from "express";
+import JSZip from "jszip";
 import { z } from "zod";
 import { loadShop } from "../middleware/shop.js";
 import { encryptSecret } from "../services/crypto.js";
@@ -31,6 +32,8 @@ const generateInvoiceSchema = z.object({
   buyerName: z.string().min(1)
 });
 
+const invoicePeriodSchema = z.enum(["week", "month", "all"]).default("month");
+
 const fa3LineSchema = z.object({
   name: z.string().min(1),
   unit: z.string().optional(),
@@ -57,6 +60,30 @@ const fa3PreviewSchema = z.object({
   currency: z.literal("PLN").default("PLN"),
   lineItems: z.array(fa3LineSchema).min(1)
 });
+
+function invoicePeriodRange(period: z.infer<typeof invoicePeriodSchema>) {
+  const now = new Date();
+
+  if (period === "all") {
+    return {};
+  }
+
+  if (period === "week") {
+    const start = new Date(now);
+    const day = start.getDay() || 7;
+    start.setDate(start.getDate() - day + 1);
+    start.setHours(0, 0, 0, 0);
+    return { gte: start };
+  }
+
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  return { gte: start };
+}
+
+function invoiceFileName(orderName: string, invoiceId: string) {
+  const safeOrderName = orderName.replace(/[^A-Za-z0-9-]/g, "") || "order";
+  return `${safeOrderName}-${invoiceId.slice(0, 8)}.xml`;
+}
 
 apiRouter.get("/health", (_req, res) => {
   res.json({
@@ -227,6 +254,145 @@ apiRouter.post("/orders/generate-invoice", loadShop, async (req, res, next) => {
       return;
     }
 
+    next(error);
+  }
+});
+
+apiRouter.get("/invoices", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const period = invoicePeriodSchema.parse(req.query.period ?? "month");
+    const createdAt = invoicePeriodRange(period);
+
+    const invoices = await prisma.ksefInvoice.findMany({
+      where: {
+        shopId: shop.id,
+        ...(Object.keys(createdAt).length ? { createdAt } : {})
+      },
+      include: { items: true },
+      orderBy: { createdAt: "desc" },
+      take: 100
+    });
+
+    res.json({
+      invoices: invoices.map((invoice) => ({
+        id: invoice.id,
+        orderId: invoice.orderId,
+        orderName: invoice.orderName,
+        buyerName: invoice.buyerName,
+        nip: invoice.nip,
+        status: invoice.status,
+        ksefNumber: invoice.ksefNumber,
+        totalGross: invoice.totalGross,
+        createdAt: invoice.createdAt,
+        submittedAt: invoice.submittedAt,
+        itemCount: invoice.items.length
+      }))
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.get("/invoices/export.zip", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const period = invoicePeriodSchema.parse(req.query.period ?? "month");
+    const createdAt = invoicePeriodRange(period);
+    const invoices = await prisma.ksefInvoice.findMany({
+      where: {
+        shopId: shop.id,
+        ...(Object.keys(createdAt).length ? { createdAt } : {})
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    const zip = new JSZip();
+    const manifest = invoices.map((invoice) => ({
+      id: invoice.id,
+      orderName: invoice.orderName,
+      buyerName: invoice.buyerName,
+      nip: invoice.nip,
+      status: invoice.status,
+      totalGross: invoice.totalGross.toString(),
+      createdAt: invoice.createdAt.toISOString(),
+      file: invoiceFileName(invoice.orderName, invoice.id)
+    }));
+
+    for (const invoice of invoices) {
+      zip.file(invoiceFileName(invoice.orderName, invoice.id), invoice.fa3Xml);
+    }
+
+    zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+
+    const content = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.type("application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="ksef-pilot-${period}-${stamp}.zip"`);
+    res.send(content);
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.get("/invoices/:invoiceId/xml", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const invoiceId = String(req.params.invoiceId);
+    const invoice = await prisma.ksefInvoice.findFirst({
+      where: {
+        id: invoiceId,
+        shopId: shop.id
+      }
+    });
+
+    if (!invoice) {
+      res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
+
+    res.type("application/xml");
+    res.setHeader("Content-Disposition", `attachment; filename="${invoiceFileName(invoice.orderName, invoice.id)}"`);
+    res.send(invoice.fa3Xml);
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.get("/invoices/:invoiceId", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const invoiceId = String(req.params.invoiceId);
+    const invoice = await prisma.ksefInvoice.findFirst({
+      where: {
+        id: invoiceId,
+        shopId: shop.id
+      },
+      include: { items: true }
+    });
+
+    if (!invoice) {
+      res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
+
+    res.json({
+      invoice: {
+        id: invoice.id,
+        orderId: invoice.orderId,
+        orderName: invoice.orderName,
+        buyerName: invoice.buyerName,
+        nip: invoice.nip,
+        fa3Xml: invoice.fa3Xml,
+        status: invoice.status,
+        ksefNumber: invoice.ksefNumber,
+        totalGross: invoice.totalGross,
+        createdAt: invoice.createdAt,
+        submittedAt: invoice.submittedAt,
+        items: invoice.items
+      }
+    });
+  } catch (error) {
     next(error);
   }
 });

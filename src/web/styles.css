@@ -82,7 +82,9 @@ body {
 
 .stat-card,
 .settings-panel,
-.order-row {
+.order-row,
+.invoice-row,
+.xml-preview {
   border: 1px solid var(--ff-border);
   border-radius: 8px;
   background: var(--ff-card);
@@ -126,10 +128,35 @@ body {
   background: var(--ff-red-soft);
 }
 
-.order-row {
+.order-row,
+.invoice-row {
   display: grid;
   gap: 16px;
   padding: 16px;
+}
+
+.period-select {
+  min-width: 220px;
+}
+
+.xml-preview {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.xml-preview pre {
+  max-height: 420px;
+  margin: 0;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 6px;
+  background: #111827;
+  color: #f9fafb;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .empty-state {
@@ -153,5 +180,9 @@ body {
   .settings-grid,
   .order-fields {
     grid-template-columns: 1fr;
+  }
+
+  .period-select {
+    min-width: 100%;
   }
 }

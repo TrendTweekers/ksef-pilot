@@ -9,6 +9,7 @@ import {
   InlineStack,
   Layout,
   Page,
+  Select,
   Spinner,
   Tabs,
   Text,
@@ -17,7 +18,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { AppBridgeBootstrap } from "./components/AppBridgeBootstrap";
 
-type View = "orders" | "settings" | "billing";
+type View = "orders" | "invoices" | "settings" | "billing";
+type InvoicePeriod = "week" | "month" | "all";
 
 interface SettingsState {
   sellerNip: string;
@@ -38,6 +40,18 @@ interface OrderRow {
   processed: boolean;
   invoiceStatus?: string;
   ksefNumber?: string;
+}
+
+interface InvoiceRow {
+  id: string;
+  orderName: string;
+  buyerName: string;
+  nip: string;
+  status: string;
+  ksefNumber?: string;
+  totalGross: string | number;
+  createdAt: string;
+  itemCount: number;
 }
 
 function currencyWarning(order: OrderRow) {
@@ -75,6 +89,12 @@ export function App() {
   const [orderError, setOrderError] = useState("");
   const [actionOrderId, setActionOrderId] = useState<string | null>(null);
   const [lastInvoice, setLastInvoice] = useState("");
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
+  const [invoicePeriod, setInvoicePeriod] = useState<InvoicePeriod>("month");
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [invoiceError, setInvoiceError] = useState("");
+  const [xmlPreview, setXmlPreview] = useState<{ title: string; xml: string } | null>(null);
+  const [bulkGenerating, setBulkGenerating] = useState(false);
 
   function apiPath(path: string) {
     const separator = path.includes("?") ? "&" : "?";
@@ -139,6 +159,28 @@ export function App() {
     }
   }
 
+  async function loadInvoices() {
+    if (!shop) return;
+
+    setInvoicesLoading(true);
+    setInvoiceError("");
+    try {
+      const response = await fetch(apiPath(`/api/invoices?period=${invoicePeriod}`));
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "Could not load draft invoices.");
+      }
+
+      const result = (await response.json()) as { invoices: InvoiceRow[] };
+      setInvoices(result.invoices);
+    } catch (error) {
+      setInvoiceError(error instanceof Error ? error.message : "Could not load draft invoices.");
+    } finally {
+      setInvoicesLoading(false);
+    }
+  }
+
   useEffect(() => {
     void loadSettings();
   }, [shop]);
@@ -146,6 +188,12 @@ export function App() {
   useEffect(() => {
     void loadOrders();
   }, [shop, onlyUnprocessedB2b]);
+
+  useEffect(() => {
+    if (view === "invoices") {
+      void loadInvoices();
+    }
+  }, [shop, invoicePeriod, view]);
 
   async function saveToken() {
     if (!shop) {
@@ -229,9 +277,10 @@ export function App() {
         throw new Error(message);
       }
 
-      const result = (await response.json()) as { invoice: { orderName: string; status: string } };
+      const result = (await response.json()) as { invoice: { id: string; orderName: string; status: string } };
       updateOrder(order.id, { processed: true, invoiceStatus: result.invoice.status });
       setLastInvoice(t("orders.invoiceCreated", { orderName: result.invoice.orderName }));
+      void loadInvoices();
     } catch (error) {
       setOrderError(error instanceof Error ? error.message : t("orders.generateError"));
     } finally {
@@ -239,8 +288,79 @@ export function App() {
     }
   }
 
+  async function generateReadyDrafts() {
+    const readyOrders = orders.filter(
+      (order) => order.isB2b && !order.processed && order.buyerNip.replace(/\D/g, "").length === 10
+    );
+
+    if (!readyOrders.length) return;
+
+    setBulkGenerating(true);
+    setOrderError("");
+    setLastInvoice("");
+    let created = 0;
+
+    try {
+      for (const order of readyOrders) {
+        setActionOrderId(order.id);
+        const response = await fetch(apiPath("/api/orders/generate-invoice"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderId: order.id,
+            buyerNip: order.buyerNip,
+            buyerName: order.buyerName
+          })
+        });
+
+        if (!response.ok) {
+          const message = ((await response.json().catch(() => ({}))) as { error?: string }).error ?? "Invoice generation failed";
+          throw new Error(`${order.name}: ${message}`);
+        }
+
+        const result = (await response.json()) as { invoice: { status: string } };
+        updateOrder(order.id, { processed: true, invoiceStatus: result.invoice.status });
+        created += 1;
+      }
+
+      setLastInvoice(`${created} draft invoice${created === 1 ? "" : "s"} created.`);
+      void loadInvoices();
+    } catch (error) {
+      setOrderError(error instanceof Error ? error.message : t("orders.generateError"));
+    } finally {
+      setActionOrderId(null);
+      setBulkGenerating(false);
+    }
+  }
+
+  async function previewInvoice(invoice: InvoiceRow) {
+    setInvoiceError("");
+    try {
+      const response = await fetch(apiPath(`/api/invoices/${invoice.id}`));
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "Could not open invoice XML.");
+      }
+
+      const result = (await response.json()) as { invoice: InvoiceRow & { fa3Xml: string } };
+      setXmlPreview({ title: `${invoice.orderName} FA(3) XML`, xml: result.invoice.fa3Xml });
+    } catch (error) {
+      setInvoiceError(error instanceof Error ? error.message : "Could not open invoice XML.");
+    }
+  }
+
+  function downloadInvoice(invoice: InvoiceRow) {
+    window.open(apiPath(`/api/invoices/${invoice.id}/xml`), "_blank");
+  }
+
+  function downloadInvoiceZip() {
+    window.open(apiPath(`/api/invoices/export.zip?period=${invoicePeriod}`), "_blank");
+  }
+
   const tabs = [
     { id: "orders", content: t("nav.orders") },
+    { id: "invoices", content: "Invoices" },
     { id: "settings", content: t("nav.settings") },
     { id: "billing", content: t("nav.billing") }
   ];
@@ -248,6 +368,9 @@ export function App() {
   const b2bCount = orders.filter((order) => order.isB2b).length;
   const draftCount = orders.filter((order) => order.invoiceStatus === "draft").length;
   const readyCount = orders.filter((order) => order.isB2b && !order.processed).length;
+  const readyVisibleCount = orders.filter(
+    (order) => order.isB2b && !order.processed && order.buyerNip.replace(/\D/g, "").length === 10
+  ).length;
 
   return (
     <>
@@ -294,9 +417,21 @@ export function App() {
                   <InlineStack align="space-between" blockAlign="center">
                     <BlockStack gap="100">
                       <Text as="h2" variant="headingMd">
-                        {view === "settings" ? t("settings.title") : view === "orders" ? t("orders.title") : "Billing"}
+                        {view === "settings"
+                          ? t("settings.title")
+                          : view === "orders"
+                            ? t("orders.title")
+                            : view === "invoices"
+                              ? "Draft invoices"
+                              : "Billing"}
                       </Text>
-                      <Text as="p" tone="subdued">{view === "orders" ? t("orders.description") : t("home.description")}</Text>
+                      <Text as="p" tone="subdued">
+                        {view === "orders"
+                          ? t("orders.description")
+                          : view === "invoices"
+                            ? "Download XML one-by-one or export a weekly/monthly ZIP for accountant review."
+                            : t("home.description")}
+                      </Text>
                     </BlockStack>
                     <Badge tone={connectionState === "connected" ? "success" : "attention"}>
                       {connectionState === "connected" ? t("settings.connected") : t("settings.notConnected")}
@@ -406,9 +541,19 @@ export function App() {
                           checked={onlyUnprocessedB2b}
                           onChange={setOnlyUnprocessedB2b}
                         />
-                        <Button onClick={loadOrders} loading={ordersLoading}>
-                          {t("orders.refresh")}
-                        </Button>
+                        <InlineStack gap="200">
+                          <Button
+                            variant="primary"
+                            disabled={!readyVisibleCount}
+                            loading={bulkGenerating}
+                            onClick={generateReadyDrafts}
+                          >
+                            Generate ready drafts
+                          </Button>
+                          <Button onClick={loadOrders} loading={ordersLoading}>
+                            {t("orders.refresh")}
+                          </Button>
+                        </InlineStack>
                       </InlineStack>
                       {ordersLoading ? (
                         <InlineStack align="center">
@@ -482,6 +627,92 @@ export function App() {
                           </div>
                         ))}
                       </BlockStack>
+                    </BlockStack>
+                  ) : null}
+
+                  {view === "invoices" ? (
+                    <BlockStack gap="400">
+                      <Banner tone="info">
+                        Drafts are local FA(3) XML files. Use this for weekly or monthly accountant review before any KSeF submission flow is enabled.
+                      </Banner>
+                      {invoiceError ? <Banner tone="critical">{invoiceError}</Banner> : null}
+                      <InlineStack align="space-between" blockAlign="end" gap="300">
+                        <div className="period-select">
+                          <Select
+                            label="Export period"
+                            value={invoicePeriod}
+                            onChange={(value) => setInvoicePeriod(value as InvoicePeriod)}
+                            options={[
+                              { label: "This week", value: "week" },
+                              { label: "This month", value: "month" },
+                              { label: "All drafts", value: "all" }
+                            ]}
+                          />
+                        </div>
+                        <InlineStack gap="200">
+                          <Button onClick={loadInvoices} loading={invoicesLoading}>
+                            Refresh
+                          </Button>
+                          <Button variant="primary" disabled={!invoices.length} onClick={downloadInvoiceZip}>
+                            Download ZIP
+                          </Button>
+                        </InlineStack>
+                      </InlineStack>
+                      {invoicesLoading ? (
+                        <InlineStack align="center">
+                          <Spinner accessibilityLabel="Loading invoices" size="small" />
+                        </InlineStack>
+                      ) : null}
+                      {!invoicesLoading && invoices.length === 0 ? (
+                        <div className="empty-state">
+                          <Text as="h3" variant="headingMd">
+                            No draft invoices yet
+                          </Text>
+                          <Text as="p" tone="subdued">
+                            Generate a draft from a B2B order, then come back here to inspect or export it.
+                          </Text>
+                        </div>
+                      ) : null}
+                      <BlockStack gap="300">
+                        {invoices.map((invoice) => (
+                          <div className="invoice-row" key={invoice.id}>
+                            <InlineStack align="space-between" blockAlign="start" gap="300">
+                              <BlockStack gap="100">
+                                <InlineStack gap="200" blockAlign="center">
+                                  <Text as="h3" variant="headingMd">
+                                    {invoice.orderName}
+                                  </Text>
+                                  <Badge tone={invoice.status === "draft" ? "info" : "success"}>{invoice.status}</Badge>
+                                </InlineStack>
+                                <Text as="p" tone="subdued">
+                                  {invoice.buyerName} - NIP {invoice.nip} - {Number(invoice.totalGross).toFixed(2)} PLN
+                                </Text>
+                                <Text as="p" tone="subdued">
+                                  Created {new Date(invoice.createdAt).toLocaleString()} - {invoice.itemCount} line item
+                                  {invoice.itemCount === 1 ? "" : "s"}
+                                </Text>
+                              </BlockStack>
+                              <InlineStack gap="200">
+                                <Button onClick={() => previewInvoice(invoice)}>Preview XML</Button>
+                                <Button variant="primary" onClick={() => downloadInvoice(invoice)}>
+                                  Download XML
+                                </Button>
+                              </InlineStack>
+                            </InlineStack>
+                          </div>
+                        ))}
+                      </BlockStack>
+                      {xmlPreview ? (
+                        <div className="xml-preview">
+                          <InlineStack align="space-between" blockAlign="center">
+                            <Text as="h3" variant="headingMd">
+                              {xmlPreview.title}
+                            </Text>
+                            <Button onClick={() => setXmlPreview(null)}>Close preview</Button>
+                          </InlineStack>
+                          <pre>{xmlPreview.xml}</pre>
+                        </div>
+                      ) : null}
                     </BlockStack>
                   ) : null}
 
