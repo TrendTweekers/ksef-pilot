@@ -207,6 +207,9 @@ export function App() {
     { id: "billing", content: t("nav.billing") }
   ];
   const selectedTab = tabs.findIndex((tab) => tab.id === view);
+  const b2bCount = orders.filter((order) => order.isB2b).length;
+  const draftCount = orders.filter((order) => order.invoiceStatus === "draft").length;
+  const readyCount = orders.filter((order) => order.isB2b && !order.processed).length;
 
   return (
     <>
@@ -214,15 +217,37 @@ export function App() {
       <Page title={t("home.title")} subtitle={t("home.tagline")}>
         <Layout>
           <Layout.Section>
-            <BlockStack gap="400">
-              <InlineStack gap="300" blockAlign="center">
-                <img className="app-icon" src="/app-icon.svg" alt="" />
-                <BlockStack gap="050">
-                  <Text as="p" variant="bodyMd" tone="subdued">
-                    {t("home.builtBy")}
+            <BlockStack gap="500">
+              <div className="app-hero">
+                <div>
+                  <div className="app-eyebrow">{t("home.builtBy")}</div>
+                  <Text as="h1" variant="heading2xl">
+                    {t("home.heroTitle")}
                   </Text>
-                </BlockStack>
-              </InlineStack>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    {t("home.heroCopy")}
+                  </Text>
+                </div>
+                <div className="hero-status">
+                  <span className={connectionState === "connected" ? "status-dot connected" : "status-dot"} />
+                  {connectionState === "connected" ? t("settings.connected") : t("settings.notConnected")}
+                </div>
+              </div>
+
+              <div className="stat-grid">
+                <div className="stat-card">
+                  <span>{t("stats.b2b")}</span>
+                  <strong>{b2bCount}</strong>
+                </div>
+                <div className="stat-card">
+                  <span>{t("stats.ready")}</span>
+                  <strong>{readyCount}</strong>
+                </div>
+                <div className="stat-card">
+                  <span>{t("stats.drafts")}</span>
+                  <strong>{draftCount}</strong>
+                </div>
+              </div>
 
               <Tabs tabs={tabs} selected={selectedTab} onSelect={(index) => setView(tabs[index].id as View)} />
 
@@ -233,9 +258,7 @@ export function App() {
                       <Text as="h2" variant="headingMd">
                         {view === "settings" ? t("settings.title") : view === "orders" ? t("orders.title") : "Billing"}
                       </Text>
-                      <Text as="p" tone="subdued">
-                        {t("home.description")}
-                      </Text>
+                      <Text as="p" tone="subdued">{view === "orders" ? t("orders.description") : t("home.description")}</Text>
                     </BlockStack>
                     <Badge tone={connectionState === "connected" ? "success" : "attention"}>
                       {connectionState === "connected" ? t("settings.connected") : t("settings.notConnected")}
@@ -244,38 +267,61 @@ export function App() {
 
                   {view === "settings" ? (
                     <BlockStack gap="300">
-                      <TextField
-                        label={t("settings.tokenLabel")}
-                        value={token}
-                        onChange={setToken}
-                        type="password"
-                        autoComplete="off"
-                        helpText={t("settings.tokenHelp")}
-                      />
-                      <TextField
-                        label={t("settings.sellerNip")}
-                        value={settings.sellerNip}
-                        onChange={(sellerNip) => setSettings((current) => ({ ...current, sellerNip }))}
-                        autoComplete="off"
-                      />
-                      <TextField
-                        label={t("settings.sellerName")}
-                        value={settings.sellerName}
-                        onChange={(sellerName) => setSettings((current) => ({ ...current, sellerName }))}
-                        autoComplete="organization"
-                      />
-                      <TextField
-                        label={t("settings.sellerAddress")}
-                        value={settings.sellerAddress}
-                        onChange={(sellerAddress) => setSettings((current) => ({ ...current, sellerAddress }))}
-                        autoComplete="street-address"
-                      />
-                      <TextField
-                        label={t("settings.placeOfIssue")}
-                        value={settings.placeOfIssue}
-                        onChange={(placeOfIssue) => setSettings((current) => ({ ...current, placeOfIssue }))}
-                        autoComplete="address-level2"
-                      />
+                      <Banner tone="info">{t("settings.safeTest")}</Banner>
+                      <div className="settings-grid">
+                        <div className="settings-panel">
+                          <BlockStack gap="300">
+                            <Text as="h3" variant="headingMd">
+                              {t("settings.sellerSection")}
+                            </Text>
+                            <TextField
+                              label={t("settings.sellerNip")}
+                              value={settings.sellerNip}
+                              onChange={(sellerNip) => setSettings((current) => ({ ...current, sellerNip }))}
+                              autoComplete="off"
+                              helpText={t("settings.sellerNipHelp")}
+                            />
+                            <TextField
+                              label={t("settings.sellerName")}
+                              value={settings.sellerName}
+                              onChange={(sellerName) => setSettings((current) => ({ ...current, sellerName }))}
+                              autoComplete="organization"
+                            />
+                            <TextField
+                              label={t("settings.sellerAddress")}
+                              value={settings.sellerAddress}
+                              onChange={(sellerAddress) => setSettings((current) => ({ ...current, sellerAddress }))}
+                              autoComplete="street-address"
+                            />
+                            <TextField
+                              label={t("settings.placeOfIssue")}
+                              value={settings.placeOfIssue}
+                              onChange={(placeOfIssue) => setSettings((current) => ({ ...current, placeOfIssue }))}
+                              autoComplete="address-level2"
+                            />
+                          </BlockStack>
+                        </div>
+                        <div className="settings-panel">
+                          <BlockStack gap="300">
+                            <Text as="h3" variant="headingMd">
+                              {t("settings.ksefSection")}
+                            </Text>
+                            <TextField
+                              label={t("settings.tokenLabel")}
+                              value={token}
+                              onChange={setToken}
+                              type="password"
+                              autoComplete="off"
+                              helpText={t("settings.tokenHelp")}
+                            />
+                            <div className="test-note">
+                              <Text as="p" tone="subdued">
+                                {t("settings.tokenSkip")}
+                              </Text>
+                            </div>
+                          </BlockStack>
+                        </div>
+                      </div>
                       <InlineStack gap="200">
                         <Button variant="primary" loading={saving} disabled={!shop} onClick={saveToken}>
                           {t("settings.save")}
@@ -289,6 +335,7 @@ export function App() {
 
                   {view === "orders" ? (
                     <BlockStack gap="400">
+                      <Banner tone="info">{t("orders.safeTest")}</Banner>
                       {orderError ? <Banner tone="critical">{orderError}</Banner> : null}
                       {lastInvoice ? <Banner tone="success">{lastInvoice}</Banner> : null}
                       <InlineStack align="space-between" blockAlign="center">

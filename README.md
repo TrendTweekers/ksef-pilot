@@ -77,6 +77,22 @@ The app requests the minimal MVP scopes:
 read_orders,read_customers,read_products
 ```
 
+## Safe Dev Store Testing
+
+You can test the current MVP without sending anything real to KSeF:
+
+1. Install the app on a Shopify development store.
+2. Create a test product and a fake order in the dev store.
+3. Open KSeF Settings and enter fake seller details:
+   - Seller NIP: `1234567890`
+   - Seller legal name: `Demo Seller Sp. z o.o.`
+   - Seller address: `Testowa 1, 00-001 Warszawa`
+   - Place of issue: `Warszawa`
+4. Leave the KSeF API token empty.
+5. Open Orders, mark the order as B2B, enter a fake buyer NIP such as `9876543210`, and generate the invoice.
+
+At this stage, "Generate invoice" creates only a local draft invoice and FA(3) XML in the app database. It does not submit to KSeF. The public SVG app icon is available at `public/app-icon.svg` for upload in the Shopify app dashboard.
+
 ## Critical Compliance Notes
 
 - KSeF tokens must remain encrypted at rest.
