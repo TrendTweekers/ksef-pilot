@@ -5,6 +5,15 @@ export const OFFICIAL_FA3_XSD_URL =
 
 let schemaPromise: Promise<unknown> | null = null;
 
+interface SchemaIssue {
+  path: string;
+  code: string;
+  message: string;
+  line?: number;
+  col?: number;
+  severity: string;
+}
+
 async function loadText(url: string) {
   const response = await fetch(url);
 
@@ -40,6 +49,32 @@ export function describeSchemaValidation() {
   };
 }
 
+function issueTextValue(message: string) {
+  return message.match(/text "([^"]+)"/)?.[1] ?? "";
+}
+
+function isIsoDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`));
+}
+
+function isIsoDateTime(value: string) {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value) && !Number.isNaN(Date.parse(value));
+}
+
+function isKnownDateFacetCompatibilityIssue(issue: SchemaIssue) {
+  if (issue.code !== "VALID_WRONG_TYPE") {
+    return false;
+  }
+
+  const value = issueTextValue(issue.message);
+  const path = issue.path.replace(/\[\d+\]/g, "");
+
+  return (
+    (path.endsWith("/fa:Naglowek/fa:DataWytworzeniaFa") && isIsoDateTime(value)) ||
+    (path.endsWith("/fa:Fa/fa:P_1") && isIsoDate(value))
+  );
+}
+
 export async function validateFa3XmlAgainstOfficialXsd(xml: string) {
   try {
     const schema = await loadSchema();
@@ -59,13 +94,22 @@ export async function validateFa3XmlAgainstOfficialXsd(xml: string) {
       col: issue.col,
       severity: issue.severity ?? "error"
     }));
+    const suppressedIssues = issues.filter(isKnownDateFacetCompatibilityIssue);
+    const blockingIssues = issues.filter((issue) => !isKnownDateFacetCompatibilityIssue(issue));
 
     return {
-      valid: Boolean(result.valid),
+      valid: blockingIssues.length === 0,
       enforced: true,
       officialXsdUrl: OFFICIAL_FA3_XSD_URL,
-      issueCount: issues.length,
-      issues
+      issueCount: blockingIssues.length,
+      issues: blockingIssues,
+      suppressedIssueCount: suppressedIssues.length,
+      suppressedIssues,
+      compatibilityNotes: suppressedIssues.length
+        ? [
+            "The local JS validator reports official FA(3) imported date/dateTime simple types as numeric facet errors. These warnings are ignored only when the XML value is a valid ISO date/dateTime at the exact FA(3) paths."
+          ]
+        : []
     };
   } catch (error) {
     return {

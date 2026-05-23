@@ -12,7 +12,7 @@ const envSchema = z.object({
   ENCRYPTION_KEY: z.string().min(32),
   KSEF_API_BASE_URL: z.string().url().default("https://ksef-test.mf.gov.pl"),
   ALLOW_NON_PLN_TEST_INVOICES: z.coerce.boolean().default(false),
-  SHOPIFY_BILLING_TEST: z.coerce.boolean().default(true),
+  SHOPIFY_APP_HANDLE: z.string().min(1).default("ksef-pilot"),
   SHOPIFY_REVIEW_URL: z.string().url().optional(),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),

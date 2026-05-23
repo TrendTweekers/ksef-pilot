@@ -63,6 +63,7 @@ interface BillingSummary {
   remaining: number | null;
   billingStatus: string;
   canGenerate: boolean;
+  managedPricingUrl: string;
   plans: Record<string, { name: string; price: number; limit: number | null }>;
 }
 
@@ -90,6 +91,8 @@ interface XsdValidationResult {
     officialXsdUrl: string;
     issueCount: number;
     issues: Array<{ path: string; code: string; message: string; severity: string }>;
+    suppressedIssueCount?: number;
+    compatibilityNotes?: string[];
   };
 }
 
@@ -480,34 +483,13 @@ export function App() {
     }
   }
 
-  async function subscribe(plan: string) {
-    setBillingLoading(true);
-    setBillingError("");
-    try {
-      const response = await fetch(apiPath("/api/billing/subscribe"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan })
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error ?? "Could not start billing.");
-      }
-
-      const result = (await response.json()) as { confirmationUrl: string | null };
-
-      if (result.confirmationUrl) {
-        window.open(result.confirmationUrl, "_top");
-        return;
-      }
-
-      await loadBilling();
-    } catch (error) {
-      setBillingError(error instanceof Error ? error.message : "Could not start billing.");
-    } finally {
-      setBillingLoading(false);
+  function openManagedPricing() {
+    if (!billing?.managedPricingUrl) {
+      setBillingError("Managed Pricing is not available yet. Refresh billing and try again.");
+      return;
     }
+
+    window.open(billing.managedPricingUrl, "_top");
   }
 
   async function dismissReview() {
@@ -887,6 +869,11 @@ export function App() {
                                 ))}
                               </BlockStack>
                             ) : null}
+                            {xsdValidation.validation.valid && xsdValidation.validation.suppressedIssueCount ? (
+                              <Text as="p" tone="subdued">
+                                {xsdValidation.validation.compatibilityNotes?.[0]}
+                              </Text>
+                            ) : null}
                           </BlockStack>
                         </Banner>
                       ) : null}
@@ -979,6 +966,9 @@ export function App() {
                   {view === "billing" ? (
                     <BlockStack gap="400">
                       {billingError ? <Banner tone="critical">{billingError}</Banner> : null}
+                      <Banner tone="info">
+                        Shopify handles plan changes and payment approval on the Managed Pricing page. KSeF Pilot only reads the active plan and usage limits.
+                      </Banner>
                       {billing ? (
                         <div className="billing-summary">
                           <BlockStack gap="100">
@@ -992,6 +982,9 @@ export function App() {
                           <strong>
                             {billing.limit === null ? `${billing.used} used / unlimited` : `${billing.used} / ${billing.limit} used`}
                           </strong>
+                          <Button variant="primary" onClick={openManagedPricing}>
+                            Manage pricing in Shopify
+                          </Button>
                         </div>
                       ) : null}
                       {billingLoading ? (
@@ -1022,11 +1015,11 @@ export function App() {
                               </Text>
                               <Button
                                 variant={billing?.plan === handle ? "secondary" : "primary"}
-                                disabled={billing?.plan === handle}
+                                disabled={!billing?.managedPricingUrl}
                                 loading={billingLoading}
-                                onClick={() => subscribe(handle)}
+                                onClick={openManagedPricing}
                               >
-                                {billing?.plan === handle ? "Active" : handle === "free" ? "Switch to free" : "Choose plan"}
+                                {billing?.plan === handle ? "Current in Shopify" : "Manage in Shopify"}
                               </Button>
                             </BlockStack>
                           </div>
