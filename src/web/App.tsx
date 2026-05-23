@@ -44,6 +44,10 @@ function useShop() {
   return useMemo(() => new URLSearchParams(window.location.search).get("shop") ?? "", []);
 }
 
+function isInstallError(message: string) {
+  return message.toLowerCase().includes("shop is not installed");
+}
+
 export function App() {
   const { t } = useTranslation();
   const shop = useShop();
@@ -75,12 +79,24 @@ export function App() {
     setOrders((current) => current.map((order) => (order.id === orderId ? { ...order, ...update } : order)));
   }
 
+  function installShop() {
+    if (!shop) {
+      return;
+    }
+
+    window.open(`/auth?shop=${encodeURIComponent(shop)}`, "_top");
+  }
+
   async function loadSettings() {
     if (!shop) return;
 
     const response = await fetch(apiPath("/api/ksef/settings"));
 
-    if (!response.ok) return;
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      setSettingsError(payload.error ?? t("settings.loadError"));
+      return;
+    }
 
     const result = (await response.json()) as SettingsState & { connected: boolean; hasToken: boolean };
     setSettings({
@@ -285,7 +301,18 @@ export function App() {
                     <BlockStack gap="300">
                       <Banner tone="info">{t("settings.safeTest")}</Banner>
                       {settingsMessage ? <Banner tone="success">{settingsMessage}</Banner> : null}
-                      {settingsError ? <Banner tone="critical">{settingsError}</Banner> : null}
+                      {settingsError ? (
+                        <Banner tone="critical">
+                          <BlockStack gap="200">
+                            <Text as="p">{settingsError}</Text>
+                            {isInstallError(settingsError) && shop ? (
+                              <InlineStack>
+                                <Button onClick={installShop}>{t("install.connect")}</Button>
+                              </InlineStack>
+                            ) : null}
+                          </BlockStack>
+                        </Banner>
+                      ) : null}
                       <div className="settings-grid">
                         <div className="settings-panel">
                           <BlockStack gap="300">
@@ -354,7 +381,18 @@ export function App() {
                   {view === "orders" ? (
                     <BlockStack gap="400">
                       <Banner tone="info">{t("orders.safeTest")}</Banner>
-                      {orderError ? <Banner tone="critical">{orderError}</Banner> : null}
+                      {orderError ? (
+                        <Banner tone="critical">
+                          <BlockStack gap="200">
+                            <Text as="p">{orderError}</Text>
+                            {isInstallError(orderError) && shop ? (
+                              <InlineStack>
+                                <Button onClick={installShop}>{t("install.connect")}</Button>
+                              </InlineStack>
+                            ) : null}
+                          </BlockStack>
+                        </Banner>
+                      ) : null}
                       {lastInvoice ? <Banner tone="success">{lastInvoice}</Banner> : null}
                       <InlineStack align="space-between" blockAlign="center">
                         <Checkbox

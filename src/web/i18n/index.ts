@@ -16,6 +16,9 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           settings: "KSeF Settings",
           billing: "Billing"
         },
+        install: {
+          connect: "Connect Shopify store"
+        },
         home: {
           title: "KSeF Pilot",
           tagline: "Polish e-invoices for Shopify",
@@ -47,6 +50,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           save: "Save settings",
           saved: "Settings saved. KSeF can stay not connected while you test with draft invoices.",
           connectedSaved: "Settings saved and KSeF token stored.",
+          loadError: "Could not load settings.",
           saveError: "Could not save settings.",
           missingShop: "Shopify did not provide the shop domain. Reopen the app from the Shopify admin Apps menu.",
           connected: "Connected",
@@ -79,6 +83,9 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           settings: "Ustawienia KSeF",
           billing: "Rozliczenia"
         },
+        install: {
+          connect: "Połącz sklep Shopify"
+        },
         home: {
           title: "KSeF Pilot",
           tagline: "Polskie e-faktury dla Shopify",
@@ -110,6 +117,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           save: "Zapisz ustawienia",
           saved: "Ustawienia zapisane. KSeF może pozostać niepołączony podczas testowania szkiców faktur.",
           connectedSaved: "Ustawienia zapisane i token KSeF zapisany.",
+          loadError: "Nie udało się wczytać ustawień.",
           saveError: "Nie udało się zapisać ustawień.",
           missingShop: "Shopify nie przekazało domeny sklepu. Otwórz aplikację ponownie z menu Apps w panelu Shopify.",
           connected: "Połączono",
