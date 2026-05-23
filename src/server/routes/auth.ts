@@ -85,7 +85,7 @@ authRouter.get("/callback", async (req, res, next) => {
 
     res.clearCookie("shopify_oauth_state");
     await registerCoreWebhooks(savedShop);
-    await notifyTelegram(`KSeF Pilot installed or reconnected: ${shop}`);
+    await notifyTelegram(`Installed or reconnected: ${shop}`);
     res.redirect(`/?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(String(req.query.host ?? ""))}`);
   } catch (error) {
     next(error);

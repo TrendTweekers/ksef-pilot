@@ -38,7 +38,7 @@ webhookRouter.post("/shopify", async (req, res, next) => {
           uninstalledAt: new Date()
         }
       });
-      await notifyTelegram(`KSeF Pilot uninstalled: ${shopDomain}`);
+      await notifyTelegram(`Uninstalled: ${shopDomain}`);
     }
 
     if (topic === "app_subscriptions/update" || topic === "APP_SUBSCRIPTIONS_UPDATE") {
@@ -48,7 +48,7 @@ webhookRouter.post("/shopify", async (req, res, next) => {
           billingStatus: String(payload?.app_subscription?.status ?? payload?.status ?? "updated")
         }
       });
-      await notifyTelegram(`KSeF Pilot billing update for ${shopDomain}: ${JSON.stringify(payload).slice(0, 500)}`);
+      await notifyTelegram(`Billing update for ${shopDomain}: ${JSON.stringify(payload).slice(0, 500)}`);
     }
 
     res.status(200).send("OK");
