@@ -409,7 +409,16 @@ export function App() {
                           <Spinner accessibilityLabel={t("orders.loading")} size="small" />
                         </InlineStack>
                       ) : null}
-                      {!ordersLoading && orders.length === 0 ? <Text as="p">{t("orders.empty")}</Text> : null}
+                      {!ordersLoading && orders.length === 0 ? (
+                        <div className="empty-state">
+                          <Text as="h3" variant="headingMd">
+                            {t("orders.emptyTitle")}
+                          </Text>
+                          <Text as="p" tone="subdued">
+                            {t("orders.empty")}
+                          </Text>
+                        </div>
+                      ) : null}
                       <BlockStack gap="300">
                         {orders.map((order) => (
                           <div className="order-row" key={order.id}>

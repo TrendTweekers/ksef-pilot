@@ -168,7 +168,7 @@ export async function fetchShopifyOrders(shop: Shop, onlyUnprocessedB2b: boolean
     shop.domain,
     shop.accessToken,
     `query KsefPilotOrders {
-      orders(first: 25, sortKey: CREATED_AT, reverse: true) {
+      orders(first: 25, query: "status:any", sortKey: CREATED_AT, reverse: true) {
         nodes {
           ${orderFields}
         }

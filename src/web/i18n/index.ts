@@ -59,7 +59,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
         orders: {
           title: "B2B orders",
           description: "Review Shopify orders and create draft invoices. The app reads orders only and never edits them.",
-          empty: "Your Shopify orders will appear here. Mark B2B orders, add buyer NIP, then generate a KSeF invoice.",
+          emptyTitle: "Shopify returned 0 orders",
+          empty: "Create a test order in this dev store, then refresh again. Draft, fulfilled, and closed orders are included.",
           filter: "Unprocessed B2B only",
           refresh: "Refresh orders",
           loading: "Loading orders",
@@ -126,7 +127,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
         orders: {
           title: "Zamówienia B2B",
           description: "Sprawdzaj zamówienia Shopify i twórz szkice faktur. Aplikacja tylko odczytuje zamówienia i nigdy ich nie edytuje.",
-          empty: "Tutaj pojawią się zamówienia Shopify. Oznacz B2B, dodaj NIP nabywcy i wygeneruj fakturę KSeF.",
+          emptyTitle: "Shopify zwróciło 0 zamówień",
+          empty: "Utwórz testowe zamówienie w tym sklepie deweloperskim i odśwież ponownie. Pobieramy też zamówienia zrealizowane i zamknięte.",
           filter: "Tylko nieprzetworzone B2B",
           refresh: "Odśwież zamówienia",
           loading: "Ładowanie zamówień",

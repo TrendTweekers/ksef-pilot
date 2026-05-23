@@ -132,6 +132,15 @@ body {
   padding: 16px;
 }
 
+.empty-state {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border: 1px dashed var(--ff-border);
+  border-radius: 8px;
+  background: #fffdfa;
+}
+
 .order-fields {
   display: grid;
   grid-template-columns: minmax(180px, 240px) minmax(220px, 1fr);
