@@ -105,6 +105,9 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           tokenSkip: "Podczas testów zostaw to pole puste. Generowanie szkicu faktury nie wymaga tokenu KSeF.",
           safeTest:
             "Bezpieczny tryb testowy: użyj fikcyjnych danych sprzedawcy i nie podawaj tokenu KSeF. Aplikacja zapisze tylko lokalny szkic XML.",
+          testMode: "Tryb testowy KSeF",
+          testModeHelp:
+            "Włączone: przycisk wysyłki tworzy lokalny numer testowy i nie wysyła nic do KSeF. Wyłącz dopiero po podłączeniu prawdziwego tokenu.",
           sellerNip: "NIP sprzedawcy",
           sellerNipHelp: "Do testów możesz wpisać dowolne 10 cyfr, na przykład 1234567890.",
           sellerName: "Nazwa prawna sprzedawcy",
@@ -167,6 +170,16 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           previewXml: "Podgląd XML",
           downloadPdf: "Pobierz PDF",
           downloadXml: "Pobierz XML",
+          submit: "Wyślij do KSeF ({{mode}})",
+          submitted: "Wysłano",
+          submitError: "Nie udało się wysłać faktury do KSeF.",
+          testMode: "test",
+          liveMode: "live",
+          testModeBanner:
+            "Tryb testowy jest włączony. Wysyłka utworzy lokalny testowy numer KSeF i nie wykona połączenia z rządowym API.",
+          liveModeBanner:
+            "Tryb live jest włączony. Prawdziwa wysyłka pozostaje zablokowana do czasu pełnej konfiguracji klienta KSeF 2.0.",
+          ksefApproved: "Faktura zatwierdzona w KSeF: {{number}}",
           openError: "Nie udało się otworzyć XML faktury.",
           validateError: "Nie udało się zwalidować XML faktury."
         },
@@ -284,6 +297,9 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           tokenHelp: "Paste the token generated at ksef.podatki.gov.pl. It is encrypted before storage.",
           tokenSkip: "Leave this empty while testing. Draft invoice generation does not require a KSeF token.",
           safeTest: "Safe test mode: use fake seller details and no KSeF token. The app will only save draft XML locally.",
+          testMode: "KSeF test mode",
+          testModeHelp:
+            "On: submit creates a local test number and sends nothing to KSeF. Turn it off only after connecting a real token.",
           sellerNip: "Seller NIP",
           sellerNipHelp: "For dev testing you can use any 10 digits, for example 1234567890.",
           sellerName: "Seller legal name",
@@ -346,6 +362,16 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           previewXml: "Preview XML",
           downloadPdf: "Download PDF",
           downloadXml: "Download XML",
+          submit: "Submit to KSeF ({{mode}})",
+          submitted: "Submitted",
+          submitError: "Could not submit invoice to KSeF.",
+          testMode: "test",
+          liveMode: "live",
+          testModeBanner:
+            "Test mode is on. Submission creates a local test KSeF number and does not call the government API.",
+          liveModeBanner:
+            "Live mode is on. Real submission remains blocked until the KSeF 2.0 client is fully configured.",
+          ksefApproved: "Invoice approved in KSeF: {{number}}",
           openError: "Could not open invoice XML.",
           validateError: "Could not validate invoice XML."
         },

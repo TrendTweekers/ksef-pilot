@@ -11,6 +11,7 @@ const envSchema = z.object({
   SHOPIFY_SCOPES: z.string().default("read_orders,read_customers,read_products"),
   ENCRYPTION_KEY: z.string().min(32),
   KSEF_API_BASE_URL: z.string().url().default("https://ksef-test.mf.gov.pl"),
+  KSEF_LIVE_SUBMISSION_ENABLED: z.coerce.boolean().default(false),
   ALLOW_NON_PLN_TEST_INVOICES: z.coerce.boolean().default(false),
   SHOPIFY_APP_HANDLE: z.string().min(1).default("ksef-pilot"),
   SHOPIFY_REVIEW_URL: z.string().url().optional(),

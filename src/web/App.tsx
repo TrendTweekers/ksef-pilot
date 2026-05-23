@@ -26,6 +26,7 @@ interface SettingsState {
   sellerName: string;
   sellerAddress: string;
   placeOfIssue: string;
+  ksefTestMode: boolean;
 }
 
 interface OrderRow {
@@ -53,6 +54,17 @@ interface InvoiceRow {
   totalGross: string | number;
   createdAt: string;
   itemCount: number;
+  submission?: {
+    id: string;
+    mode: string;
+    status: string;
+    attempts: number;
+    nextRetryAt?: string | null;
+    lastError?: string | null;
+    ksefNumber?: string | null;
+    sessionReferenceNumber?: string | null;
+    invoiceReferenceNumber?: string | null;
+  } | null;
 }
 
 interface BillingSummary {
@@ -119,7 +131,8 @@ export function App() {
     sellerNip: "",
     sellerName: "",
     sellerAddress: "",
-    placeOfIssue: ""
+    placeOfIssue: "",
+    ksefTestMode: true
   });
   const [saving, setSaving] = useState(false);
   const [connectionState, setConnectionState] = useState<"unknown" | "connected" | "error">("unknown");
@@ -144,6 +157,7 @@ export function App() {
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
   const [xsdValidation, setXsdValidation] = useState<XsdValidationResult | null>(null);
   const [validatingInvoiceId, setValidatingInvoiceId] = useState<string | null>(null);
+  const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
 
   function apiPath(path: string) {
     const separator = path.includes("?") ? "&" : "?";
@@ -178,7 +192,8 @@ export function App() {
       sellerNip: result.sellerNip ?? "",
       sellerName: result.sellerName ?? "",
       sellerAddress: result.sellerAddress ?? "",
-      placeOfIssue: result.placeOfIssue ?? ""
+      placeOfIssue: result.placeOfIssue ?? "",
+      ksefTestMode: result.ksefTestMode ?? true
     });
     setConnectionState(result.connected ? "connected" : "unknown");
   }
@@ -464,6 +479,26 @@ export function App() {
     }, 1200);
   }
 
+  async function submitInvoice(invoice: InvoiceRow) {
+    setSubmittingInvoiceId(invoice.id);
+    setInvoiceError("");
+    try {
+      const response = await fetch(apiPath(`/api/invoices/${invoice.id}/submit`), { method: "POST" });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? t("invoices.submitError"));
+      }
+
+      await loadInvoices();
+      void loadSetupStatus();
+    } catch (error) {
+      setInvoiceError(error instanceof Error ? error.message : t("invoices.submitError"));
+    } finally {
+      setSubmittingInvoiceId(null);
+    }
+  }
+
   async function validateInvoice(invoice: InvoiceRow) {
     setValidatingInvoiceId(invoice.id);
     setInvoiceError("");
@@ -523,6 +558,7 @@ export function App() {
     ["pro", t("plans.pro"), "$19.99", t("billing.invoicesMonth", { count: 200 })],
     ["unlimited", t("plans.unlimited"), "$39.99", t("billing.unlimitedInvoices")]
   ];
+  const submissionModeLabel = settings.ksefTestMode ? t("invoices.testMode") : t("invoices.liveMode");
 
   return (
     <>
@@ -662,6 +698,12 @@ export function App() {
                   {view === "settings" ? (
                     <BlockStack gap="300">
                       <Banner tone="info">{t("settings.safeTest")}</Banner>
+                      <Checkbox
+                        label={t("settings.testMode")}
+                        checked={settings.ksefTestMode}
+                        onChange={(ksefTestMode) => setSettings((current) => ({ ...current, ksefTestMode }))}
+                        helpText={t("settings.testModeHelp")}
+                      />
                       {settingsMessage ? <Banner tone="success">{settingsMessage}</Banner> : null}
                       {settingsError ? (
                         <Banner tone="critical">
@@ -872,6 +914,9 @@ export function App() {
                   {view === "invoices" ? (
                     <BlockStack gap="400">
                       <Banner tone="info">{t("invoices.safeTest")}</Banner>
+                      <Banner tone={settings.ksefTestMode ? "info" : "warning"}>
+                        {settings.ksefTestMode ? t("invoices.testModeBanner") : t("invoices.liveModeBanner")}
+                      </Banner>
                       {invoiceError ? <Banner tone="critical">{invoiceError}</Banner> : null}
                       {xsdValidation ? (
                         <Banner tone={xsdValidation.validation.valid ? "success" : "critical"}>
@@ -950,10 +995,21 @@ export function App() {
                                   <Badge tone={invoice.status === "draft" ? "info" : invoice.status === "exported" ? "attention" : "success"}>
                                     {invoice.status}
                                   </Badge>
+                                  {invoice.submission ? <Badge tone="info">{invoice.submission.mode}</Badge> : null}
                                 </InlineStack>
                                 <Text as="p" tone="subdued">
                                   {invoice.buyerName} - NIP {invoice.nip} - {Number(invoice.totalGross).toFixed(2)} PLN
                                 </Text>
+                                {invoice.ksefNumber ? (
+                                  <Text as="p" tone="success">
+                                    {t("invoices.ksefApproved", { number: invoice.ksefNumber })}
+                                  </Text>
+                                ) : null}
+                                {invoice.submission?.lastError ? (
+                                  <Text as="p" tone="critical">
+                                    {invoice.submission.lastError}
+                                  </Text>
+                                ) : null}
                                 <Text as="p" tone="subdued">
                                   {t("invoices.createdLine", {
                                     date: new Date(invoice.createdAt).toLocaleString(locale),
@@ -964,6 +1020,14 @@ export function App() {
                               <InlineStack gap="200">
                                 <Button loading={validatingInvoiceId === invoice.id} onClick={() => validateInvoice(invoice)}>
                                   {t("invoices.validate")}
+                                </Button>
+                                <Button
+                                  variant="primary"
+                                  disabled={Boolean(invoice.ksefNumber)}
+                                  loading={submittingInvoiceId === invoice.id}
+                                  onClick={() => submitInvoice(invoice)}
+                                >
+                                  {invoice.ksefNumber ? t("invoices.submitted") : t("invoices.submit", { mode: submissionModeLabel })}
                                 </Button>
                                 <Button onClick={() => previewInvoice(invoice)}>{t("invoices.previewXml")}</Button>
                                 <Button onClick={() => downloadInvoicePdf(invoice)}>{t("invoices.downloadPdf")}</Button>

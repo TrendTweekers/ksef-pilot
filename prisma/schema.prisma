@@ -15,6 +15,7 @@ model Shop {
   uninstalledAt DateTime?
   ksefToken     String?
   ksefConnected Boolean   @default(false)
+  ksefTestMode  Boolean   @default(true)
   sellerNip     String?
   sellerName    String?
   sellerAddress String?
@@ -28,6 +29,7 @@ model Shop {
   updatedAt     DateTime  @updatedAt
 
   invoices      KsefInvoice[]
+  ksefSubmissions KsefSubmission[]
   orderFlags    OrderFlag[]
   buyerProfiles CustomerBuyerProfile[]
   sessions      ShopifySession[]
@@ -103,9 +105,34 @@ model KsefInvoice {
   submittedAt   DateTime?
 
   items         InvoiceItem[]
+  submissions   KsefSubmission[]
 
   @@index([shopId, orderId])
   @@index([status, nextRetryAt])
+}
+
+model KsefSubmission {
+  id                     String      @id @default(uuid())
+  shopId                 Int
+  shop                   Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  invoiceId              String
+  invoice                KsefInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  mode                   String      @default("test")
+  status                 String      @default("pending")
+  sessionReferenceNumber String?
+  invoiceReferenceNumber String?
+  ksefNumber             String?
+  attempts               Int         @default(0)
+  nextRetryAt            DateTime?
+  lastError              String?
+  requestHash            String?
+  responsePayload        Json?
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
+  submittedAt            DateTime?
+
+  @@index([shopId, status, nextRetryAt])
+  @@index([invoiceId, createdAt])
 }
 
 model InvoiceItem {

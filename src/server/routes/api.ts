@@ -3,7 +3,7 @@ import JSZip from "jszip";
 import { z } from "zod";
 import { loadShop } from "../middleware/shop.js";
 import { encryptSecret } from "../services/crypto.js";
-import { testKsefToken } from "../services/ksef.js";
+import { submitInvoiceToKsef, testKsefToken } from "../services/ksef.js";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
 import { billingPlans, getBillingSummary } from "../services/billing.js";
@@ -20,7 +20,8 @@ const ksefSettingsSchema = z.object({
   sellerNip: z.string().optional(),
   sellerName: z.string().optional(),
   sellerAddress: z.string().optional(),
-  placeOfIssue: z.string().optional()
+  placeOfIssue: z.string().optional(),
+  ksefTestMode: z.boolean().optional()
 });
 
 const orderFlagSchema = z.object({
@@ -196,7 +197,8 @@ apiRouter.get("/ksef/settings", loadShop, async (_req, res) => {
     sellerNip: shop.sellerNip ?? "",
     sellerName: shop.sellerName ?? "",
     sellerAddress: shop.sellerAddress ?? "",
-    placeOfIssue: shop.placeOfIssue ?? ""
+    placeOfIssue: shop.placeOfIssue ?? "",
+    ksefTestMode: shop.ksefTestMode
   });
 });
 
@@ -219,7 +221,8 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
         sellerNip: input.sellerNip?.replace(/\D/g, "") || null,
         sellerName: input.sellerName?.trim() || null,
         sellerAddress: input.sellerAddress?.trim() || null,
-        placeOfIssue: input.placeOfIssue?.trim() || null
+        placeOfIssue: input.placeOfIssue?.trim() || null,
+        ...(typeof input.ksefTestMode === "boolean" ? { ksefTestMode: input.ksefTestMode } : {})
       }
     });
 
@@ -229,7 +232,8 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
       sellerNip: updated.sellerNip ?? "",
       sellerName: updated.sellerName ?? "",
       sellerAddress: updated.sellerAddress ?? "",
-      placeOfIssue: updated.placeOfIssue ?? ""
+      placeOfIssue: updated.placeOfIssue ?? "",
+      ksefTestMode: updated.ksefTestMode
     });
   } catch (error) {
     next(error);
@@ -433,20 +437,49 @@ apiRouter.get("/invoices", loadShop, async (req, res, next) => {
       take: 100
     });
 
+    const submissions = await prisma.ksefSubmission.findMany({
+      where: {
+        invoiceId: { in: invoices.map((invoice) => invoice.id) }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+    const latestSubmissionByInvoice = new Map<string, (typeof submissions)[number]>();
+    for (const submission of submissions) {
+      if (!latestSubmissionByInvoice.has(submission.invoiceId)) {
+        latestSubmissionByInvoice.set(submission.invoiceId, submission);
+      }
+    }
+
     res.json({
-      invoices: invoices.map((invoice) => ({
-        id: invoice.id,
-        orderId: invoice.orderId,
-        orderName: invoice.orderName,
-        buyerName: invoice.buyerName,
-        nip: invoice.nip,
-        status: invoice.status,
-        ksefNumber: invoice.ksefNumber,
-        totalGross: invoice.totalGross,
-        createdAt: invoice.createdAt,
-        submittedAt: invoice.submittedAt,
-        itemCount: invoice.items.length
-      }))
+      invoices: invoices.map((invoice) => {
+        const submission = latestSubmissionByInvoice.get(invoice.id);
+        return {
+          id: invoice.id,
+          orderId: invoice.orderId,
+          orderName: invoice.orderName,
+          buyerName: invoice.buyerName,
+          nip: invoice.nip,
+          status: invoice.status,
+          ksefNumber: invoice.ksefNumber,
+          totalGross: invoice.totalGross,
+          createdAt: invoice.createdAt,
+          submittedAt: invoice.submittedAt,
+          itemCount: invoice.items.length,
+          submission: submission
+            ? {
+                id: submission.id,
+                mode: submission.mode,
+                status: submission.status,
+                attempts: submission.attempts,
+                nextRetryAt: submission.nextRetryAt,
+                lastError: submission.lastError,
+                ksefNumber: submission.ksefNumber,
+                sessionReferenceNumber: submission.sessionReferenceNumber,
+                invoiceReferenceNumber: submission.invoiceReferenceNumber
+              }
+            : null
+        };
+      })
     });
   } catch (error) {
     next(error);
@@ -550,6 +583,49 @@ apiRouter.get("/invoices/:invoiceId/validate", loadShop, async (req, res, next) 
       validation
     });
   } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post("/invoices/:invoiceId/submit", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const invoiceId = String(req.params.invoiceId);
+    const result = await submitInvoiceToKsef(shop, invoiceId);
+
+    res.json({
+      reused: result.reused,
+      invoice: {
+        id: result.invoice.id,
+        orderName: result.invoice.orderName,
+        status: result.invoice.status,
+        ksefNumber: result.invoice.ksefNumber,
+        submittedAt: result.invoice.submittedAt
+      },
+      submission: result.submission
+        ? {
+            id: result.submission.id,
+            mode: result.submission.mode,
+            status: result.submission.status,
+            attempts: result.submission.attempts,
+            nextRetryAt: result.submission.nextRetryAt,
+            lastError: result.submission.lastError,
+            ksefNumber: result.submission.ksefNumber,
+            sessionReferenceNumber: result.submission.sessionReferenceNumber,
+            invoiceReferenceNumber: result.submission.invoiceReferenceNumber
+          }
+        : null
+    });
+
+    await notifyTelegram(
+      `KSeF submission ${result.submission?.mode ?? "unknown"}: ${shop.domain} ${result.invoice.orderName} -> ${result.invoice.status}`
+    );
+  } catch (error) {
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
     next(error);
   }
 });
