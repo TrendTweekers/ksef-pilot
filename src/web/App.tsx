@@ -51,6 +51,9 @@ interface InvoiceRow {
   nip: string;
   status: string;
   ksefNumber?: string;
+  upoStatus?: string | null;
+  upoFetchedAt?: string | null;
+  hasUpo?: boolean;
   totalGross: string | number;
   createdAt: string;
   itemCount: number;
@@ -158,6 +161,7 @@ export function App() {
   const [xsdValidation, setXsdValidation] = useState<XsdValidationResult | null>(null);
   const [validatingInvoiceId, setValidatingInvoiceId] = useState<string | null>(null);
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
+  const [refreshingStatusInvoiceId, setRefreshingStatusInvoiceId] = useState<string | null>(null);
 
   function apiPath(path: string) {
     const separator = path.includes("?") ? "&" : "?";
@@ -497,6 +501,30 @@ export function App() {
     } finally {
       setSubmittingInvoiceId(null);
     }
+  }
+
+  async function refreshKsefStatus(invoice: InvoiceRow) {
+    setRefreshingStatusInvoiceId(invoice.id);
+    setInvoiceError("");
+    try {
+      const response = await fetch(apiPath(`/api/invoices/${invoice.id}/refresh-status`), { method: "POST" });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? t("invoices.refreshStatusError"));
+      }
+
+      await loadInvoices();
+      void loadSetupStatus();
+    } catch (error) {
+      setInvoiceError(error instanceof Error ? error.message : t("invoices.refreshStatusError"));
+    } finally {
+      setRefreshingStatusInvoiceId(null);
+    }
+  }
+
+  function downloadInvoiceUpo(invoice: InvoiceRow) {
+    window.open(apiPath(`/api/invoices/${invoice.id}/upo.xml`), "_blank");
   }
 
   async function validateInvoice(invoice: InvoiceRow) {
@@ -1005,6 +1033,16 @@ export function App() {
                                     {t("invoices.ksefApproved", { number: invoice.ksefNumber })}
                                   </Text>
                                 ) : null}
+                                {invoice.submission?.invoiceReferenceNumber ? (
+                                  <Text as="p" tone="subdued">
+                                    {t("invoices.invoiceReference", { number: invoice.submission.invoiceReferenceNumber })}
+                                  </Text>
+                                ) : null}
+                                {invoice.upoStatus ? (
+                                  <Text as="p" tone="subdued">
+                                    {t("invoices.upoStatus", { status: invoice.upoStatus })}
+                                  </Text>
+                                ) : null}
                                 {invoice.submission?.lastError ? (
                                   <Text as="p" tone="critical">
                                     {invoice.submission.lastError}
@@ -1029,6 +1067,17 @@ export function App() {
                                 >
                                   {invoice.ksefNumber ? t("invoices.submitted") : t("invoices.submit", { mode: submissionModeLabel })}
                                 </Button>
+                                {invoice.submission?.mode === "live" && invoice.submission.invoiceReferenceNumber ? (
+                                  <Button
+                                    loading={refreshingStatusInvoiceId === invoice.id}
+                                    onClick={() => refreshKsefStatus(invoice)}
+                                  >
+                                    {t("invoices.refreshStatus")}
+                                  </Button>
+                                ) : null}
+                                {invoice.hasUpo ? (
+                                  <Button onClick={() => downloadInvoiceUpo(invoice)}>{t("invoices.downloadUpo")}</Button>
+                                ) : null}
                                 <Button onClick={() => previewInvoice(invoice)}>{t("invoices.previewXml")}</Button>
                                 <Button onClick={() => downloadInvoicePdf(invoice)}>{t("invoices.downloadPdf")}</Button>
                                 <Button variant="primary" onClick={() => downloadInvoice(invoice)}>

@@ -30,7 +30,7 @@ This scaffold starts the MVP with:
 - Embedded Polaris admin shell with Orders, Settings, and Billing views
 - Railway deployment config
 
-The next implementation slices are KSeF status/UPO refresh, production token validation hardening, corrections, and final App Store polish.
+The next implementation slices are production token validation hardening, corrections, and final App Store polish.
 
 ## Setup
 
@@ -118,6 +118,20 @@ When live mode is enabled, "Test connection" authenticates against KSeF if a sel
 
 ```text
 POST /api/ksef/retry-due
+Authorization: Bearer <KSEF_WORKER_SECRET>
+```
+
+KSeF processing is asynchronous. After an invoice has a session reference and invoice reference, the app can refresh its government status and store the final KSeF number/UPO:
+
+```text
+POST /api/invoices/:invoiceId/refresh-status
+GET /api/invoices/:invoiceId/upo.xml
+```
+
+Railway can also refresh pending submitted invoices:
+
+```text
+POST /api/ksef/refresh-statuses
 Authorization: Bearer <KSEF_WORKER_SECRET>
 ```
 

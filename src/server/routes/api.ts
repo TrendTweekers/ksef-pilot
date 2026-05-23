@@ -3,7 +3,13 @@ import JSZip from "jszip";
 import { z } from "zod";
 import { loadShop } from "../middleware/shop.js";
 import { encryptSecret } from "../services/crypto.js";
-import { processDueKsefRetries, submitInvoiceToKsef, testKsefToken } from "../services/ksef.js";
+import {
+  processDueKsefRetries,
+  processPendingKsefStatusRefreshes,
+  refreshInvoiceKsefStatus,
+  submitInvoiceToKsef,
+  testKsefToken
+} from "../services/ksef.js";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
 import { billingPlans, getBillingSummary } from "../services/billing.js";
@@ -283,6 +289,30 @@ apiRouter.post("/ksef/retry-due", async (req, res, next) => {
   }
 });
 
+apiRouter.post("/ksef/refresh-statuses", async (req, res, next) => {
+  try {
+    if (!env.KSEF_WORKER_SECRET && env.NODE_ENV === "production") {
+      res.status(503).json({ error: "KSEF_WORKER_SECRET is required in production." });
+      return;
+    }
+
+    if (env.KSEF_WORKER_SECRET && req.header("authorization") !== `Bearer ${env.KSEF_WORKER_SECRET}`) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const limit = z.coerce.number().int().min(1).max(50).default(10).parse(req.query.limit ?? 10);
+    const result = await processPendingKsefStatusRefreshes(limit);
+    res.json(result);
+
+    if (result.processed > 0) {
+      await notifyTelegram(`KSeF Pilot status worker: refreshed ${result.processed} submission(s).`);
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
 apiRouter.get("/orders", loadShop, async (req, res, next) => {
   try {
     const shop = res.locals.shop!;
@@ -487,6 +517,9 @@ apiRouter.get("/invoices", loadShop, async (req, res, next) => {
           nip: invoice.nip,
           status: invoice.status,
           ksefNumber: invoice.ksefNumber,
+          upoStatus: invoice.upoStatus,
+          upoFetchedAt: invoice.upoFetchedAt,
+          hasUpo: Boolean(invoice.upoXml),
           totalGross: invoice.totalGross,
           createdAt: invoice.createdAt,
           submittedAt: invoice.submittedAt,
@@ -656,6 +689,68 @@ apiRouter.post("/invoices/:invoiceId/submit", loadShop, async (req, res, next) =
   }
 });
 
+apiRouter.post("/invoices/:invoiceId/refresh-status", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const invoiceId = String(req.params.invoiceId);
+    const result = await refreshInvoiceKsefStatus(shop, invoiceId);
+
+    res.json({
+      invoice: {
+        id: result.invoice.id,
+        orderName: result.invoice.orderName,
+        status: result.invoice.status,
+        ksefNumber: result.invoice.ksefNumber,
+        upoStatus: result.invoice.upoStatus,
+        upoFetchedAt: result.invoice.upoFetchedAt,
+        hasUpo: Boolean(result.invoice.upoXml)
+      },
+      submission: {
+        id: result.submission.id,
+        status: result.submission.status,
+        ksefNumber: result.submission.ksefNumber,
+        lastError: result.submission.lastError
+      },
+      upoFetched: result.upoFetched
+    });
+
+    if (result.invoice.ksefNumber) {
+      await notifyTelegram(`KSeF Pilot confirmed: ${shop.domain} ${result.invoice.orderName} -> ${result.invoice.ksefNumber}`);
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
+    next(error);
+  }
+});
+
+apiRouter.get("/invoices/:invoiceId/upo.xml", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const invoiceId = String(req.params.invoiceId);
+    const invoice = await prisma.ksefInvoice.findFirst({
+      where: {
+        id: invoiceId,
+        shopId: shop.id
+      }
+    });
+
+    if (!invoice?.upoXml) {
+      res.status(404).json({ error: "UPO is not available for this invoice yet" });
+      return;
+    }
+
+    res.type("application/xml");
+    res.setHeader("Content-Disposition", `attachment; filename="${invoiceFileName(invoice.orderName, invoice.id).replace(".xml", "-upo.xml")}"`);
+    res.send(invoice.upoXml);
+  } catch (error) {
+    next(error);
+  }
+});
+
 apiRouter.get("/invoices/:invoiceId/pdf", loadShop, async (req, res, next) => {
   try {
     const shop = res.locals.shop!;
@@ -712,6 +807,9 @@ apiRouter.get("/invoices/:invoiceId", loadShop, async (req, res, next) => {
         fa3Xml: invoice.fa3Xml,
         status: invoice.status,
         ksefNumber: invoice.ksefNumber,
+        upoStatus: invoice.upoStatus,
+        upoFetchedAt: invoice.upoFetchedAt,
+        hasUpo: Boolean(invoice.upoXml),
         totalGross: invoice.totalGross,
         createdAt: invoice.createdAt,
         submittedAt: invoice.submittedAt,

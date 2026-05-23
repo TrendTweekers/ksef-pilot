@@ -170,15 +170,20 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           previewXml: "Podgląd XML",
           downloadPdf: "Pobierz PDF",
           downloadXml: "Pobierz XML",
+          downloadUpo: "Pobierz UPO",
           submit: "Wyślij do KSeF ({{mode}})",
           submitted: "Wysłano",
           submitError: "Nie udało się wysłać faktury do KSeF.",
+          refreshStatus: "Odśwież status KSeF",
+          refreshStatusError: "Nie udało się odświeżyć statusu KSeF.",
+          invoiceReference: "Referencja wysyłki KSeF: {{number}}",
+          upoStatus: "Status KSeF: {{status}}",
           testMode: "test",
           liveMode: "live",
           testModeBanner:
             "Tryb testowy jest włączony. Wysyłka utworzy lokalny testowy numer KSeF i nie wykona połączenia z rządowym API.",
           liveModeBanner:
-            "Tryb live jest włączony. Prawdziwa wysyłka pozostaje zablokowana do czasu pełnej konfiguracji klienta KSeF 2.0.",
+            "Tryb live jest włączony. Aplikacja wyśle fakturę do KSeF tylko jeśli serwer ma włączoną prawdziwą wysyłkę i zapisany token.",
           ksefApproved: "Faktura zatwierdzona w KSeF: {{number}}",
           openError: "Nie udało się otworzyć XML faktury.",
           validateError: "Nie udało się zwalidować XML faktury."
@@ -362,15 +367,20 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           previewXml: "Preview XML",
           downloadPdf: "Download PDF",
           downloadXml: "Download XML",
+          downloadUpo: "Download UPO",
           submit: "Submit to KSeF ({{mode}})",
           submitted: "Submitted",
           submitError: "Could not submit invoice to KSeF.",
+          refreshStatus: "Refresh KSeF status",
+          refreshStatusError: "Could not refresh KSeF status.",
+          invoiceReference: "KSeF send reference: {{number}}",
+          upoStatus: "KSeF status: {{status}}",
           testMode: "test",
           liveMode: "live",
           testModeBanner:
             "Test mode is on. Submission creates a local test KSeF number and does not call the government API.",
           liveModeBanner:
-            "Live mode is on. Real submission remains blocked until the KSeF 2.0 client is fully configured.",
+            "Live mode is on. The app will call KSeF only when the server has live submission enabled and a token is saved.",
           ksefApproved: "Invoice approved in KSeF: {{number}}",
           openError: "Could not open invoice XML.",
           validateError: "Could not validate invoice XML."

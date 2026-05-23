@@ -9,6 +9,7 @@ import {
   KSeFRateLimitError,
   KSeFUnauthorizedError,
   openOnlineSession,
+  type SessionInvoiceStatusResponse,
   type EnvironmentName
 } from "ksef-client-ts";
 import { env } from "../config/env.js";
@@ -95,6 +96,27 @@ function createClient() {
   });
 }
 
+async function authenticatedClient(shop: Shop) {
+  if (!env.KSEF_LIVE_SUBMISSION_ENABLED) {
+    throw new Error(
+      "ERR_KSEF_001: Live KSeF API calls are disabled. Set KSEF_LIVE_SUBMISSION_ENABLED=true only for real KSeF testing."
+    );
+  }
+
+  if (!shop.ksefToken) {
+    throw new Error("ERR_KSEF_001: KSeF token is required.");
+  }
+
+  if (!shop.sellerNip) {
+    throw new Error("ERR_KSEF_006: Seller NIP is required.");
+  }
+
+  const client = createClient();
+  await client.crypto.init();
+  await client.loginWithToken(decryptSecret(shop.ksefToken), shop.sellerNip);
+  return client;
+}
+
 function technicalCodeForError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   const lower = message.toLowerCase();
@@ -146,6 +168,11 @@ function retryAfter(error: unknown, attempts: number) {
   }
 
   return retryDelay(attempts);
+}
+
+function isInvoiceFailure(status: SessionInvoiceStatusResponse) {
+  const description = status.status.description.toLowerCase();
+  return description.includes("failed") || description.includes("rejected") || description.includes("błąd");
 }
 
 async function createFailedSubmission(shop: Shop, invoice: KsefInvoice, error: string, attempts = 1) {
@@ -254,10 +281,7 @@ async function submitInvoiceLive(shop: Shop, invoice: KsefInvoice) {
   });
 
   try {
-    const token = decryptSecret(shop.ksefToken);
-    const client = createClient();
-    await client.crypto.init();
-    await client.loginWithToken(token, shop.sellerNip);
+    const client = await authenticatedClient(shop);
 
     const session = await openOnlineSession(client, {
       formCode: FORM_CODES.FA_3,
@@ -376,6 +400,163 @@ export async function submitInvoiceToKsef(shop: Shop, invoiceId: string) {
   });
 
   return { invoice: updatedInvoice, submission, reused: false };
+}
+
+export async function refreshInvoiceKsefStatus(shop: Shop, invoiceId: string) {
+  const invoice = await prisma.ksefInvoice.findFirst({
+    where: {
+      id: invoiceId,
+      shopId: shop.id
+    }
+  });
+
+  if (!invoice) {
+    throw new Error("Invoice not found.");
+  }
+
+  const submission = await prisma.ksefSubmission.findFirst({
+    where: {
+      invoiceId: invoice.id,
+      mode: "live",
+      sessionReferenceNumber: { not: null },
+      invoiceReferenceNumber: { not: null }
+    },
+    orderBy: { createdAt: "desc" }
+  });
+
+  if (!submission?.sessionReferenceNumber || !submission.invoiceReferenceNumber) {
+    throw new Error("No live KSeF submission reference is available for this invoice.");
+  }
+
+  try {
+    const client = await authenticatedClient(shop);
+    const status = await client.sessionStatus.getSessionInvoice(
+      submission.sessionReferenceNumber,
+      submission.invoiceReferenceNumber
+    );
+    const ksefNumber = status.ksefNumber ?? null;
+    let upoXml: string | null = null;
+
+    if (ksefNumber) {
+      const upo = await client.sessionStatus
+        .getInvoiceUpoByReference(submission.sessionReferenceNumber, submission.invoiceReferenceNumber)
+        .catch(() => null);
+      upoXml = upo?.upo ?? null;
+    }
+
+    const invoiceStatus = ksefNumber ? "submitted" : isInvoiceFailure(status) ? "error" : "submitted";
+    const lastError = isInvoiceFailure(status) ? `${status.status.code}: ${status.status.description}` : null;
+
+    const [updatedInvoice, updatedSubmission] = await prisma.$transaction([
+      prisma.ksefInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: invoiceStatus,
+          ksefNumber: ksefNumber ?? invoice.ksefNumber,
+          upoXml: upoXml ?? invoice.upoXml,
+          upoStatus: status.status.description,
+          upoFetchedAt: upoXml ? new Date() : invoice.upoFetchedAt,
+          lastError
+        }
+      }),
+      prisma.ksefSubmission.update({
+        where: { id: submission.id },
+        data: {
+          status: ksefNumber ? "confirmed" : invoiceStatus,
+          ksefNumber: ksefNumber ?? submission.ksefNumber,
+          lastError,
+          responsePayload: {
+          environment: ksefEnvironment(),
+          sessionReferenceNumber: submission.sessionReferenceNumber,
+          invoiceReferenceNumber: submission.invoiceReferenceNumber,
+          invoiceStatus: {
+            code: status.status.code,
+            description: status.status.description,
+            details: status.status.details ?? null,
+            extensions: status.status.extensions ?? null
+          },
+          ksefNumber,
+          upoFetched: Boolean(upoXml)
+        }
+        }
+      })
+    ]);
+
+    return {
+      invoice: updatedInvoice,
+      submission: updatedSubmission,
+      status,
+      upoFetched: Boolean(upoXml)
+    };
+  } catch (error) {
+    const lastError = errorMessage(error);
+    await prisma.ksefSubmission.update({
+      where: { id: submission.id },
+      data: {
+        status: lastError.startsWith("ERR_KSEF_003") || lastError.startsWith("ERR_KSEF_004") ? "submitted" : "failed",
+        lastError,
+        responsePayload: {
+          environment: ksefEnvironment(),
+          error: lastError
+        }
+      }
+    });
+
+    await prisma.ksefInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        lastError
+      }
+    });
+
+    throw new Error(lastError);
+  }
+}
+
+export async function processPendingKsefStatusRefreshes(limit = 10) {
+  const submissions = await prisma.ksefSubmission.findMany({
+    where: {
+      mode: "live",
+      status: { in: ["submitted"] },
+      ksefNumber: null,
+      sessionReferenceNumber: { not: null },
+      invoiceReferenceNumber: { not: null }
+    },
+    include: {
+      invoice: true,
+      shop: true
+    },
+    orderBy: {
+      submittedAt: "asc"
+    },
+    take: limit
+  });
+
+  const results = [];
+  for (const submission of submissions) {
+    try {
+      const result = await refreshInvoiceKsefStatus(submission.shop, submission.invoiceId);
+      results.push({
+        invoiceId: submission.invoiceId,
+        orderName: submission.invoice.orderName,
+        status: result.invoice.status,
+        ksefNumber: result.invoice.ksefNumber,
+        upoFetched: result.upoFetched
+      });
+    } catch (error) {
+      results.push({
+        invoiceId: submission.invoiceId,
+        orderName: submission.invoice.orderName,
+        status: "error",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  return {
+    processed: results.length,
+    results
+  };
 }
 
 export async function processDueKsefRetries(limit = 10) {
