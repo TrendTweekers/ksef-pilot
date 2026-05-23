@@ -32,6 +32,26 @@ interface ShopifyLineItemNode {
   discountedTotalSet: { shopMoney: Money };
 }
 
+interface ShopifyRefundLineItemNode {
+  id: string;
+  quantity: number;
+  subtotalSet: { shopMoney: Money };
+  totalTaxSet: { shopMoney: Money };
+  lineItem: {
+    id: string;
+    name: string;
+  };
+}
+
+interface ShopifyRefundNode {
+  id: string;
+  createdAt: string;
+  note?: string | null;
+  refundLineItems: {
+    nodes: ShopifyRefundLineItemNode[];
+  };
+}
+
 interface ShopifyOrderNode {
   id: string;
   name: string;
@@ -47,6 +67,7 @@ interface ShopifyOrderNode {
     nip3?: { value: string } | null;
   } | null;
   lineItems: { nodes: ShopifyLineItemNode[] };
+  refunds?: ShopifyRefundNode[];
 }
 
 interface ShopifyOrdersResponse {
@@ -108,6 +129,33 @@ const orderFields = `
         shopMoney {
           amount
           currencyCode
+        }
+      }
+    }
+  }
+  refunds(first: 10) {
+    id
+    createdAt
+    note
+    refundLineItems(first: 50) {
+      nodes {
+        id
+        quantity
+        subtotalSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        totalTaxSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        lineItem {
+          id
+          name
         }
       }
     }
@@ -331,6 +379,36 @@ function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyer
   };
 }
 
+function refundCorrectionItems(order: ShopifyOrderNode) {
+  const refundItems = (order.refunds ?? []).flatMap((refund) =>
+    refund.refundLineItems.nodes.map((refundItem) => ({
+      refund,
+      refundItem
+    }))
+  );
+
+  if (!refundItems.length) {
+    return [];
+  }
+
+  return refundItems.map(({ refundItem }) => {
+    const quantity = Math.max(1, refundItem.quantity);
+    const totalNet = -roundMoney(toNumber(refundItem.subtotalSet.shopMoney.amount));
+    const totalVat = -roundMoney(toNumber(refundItem.totalTaxSet.shopMoney.amount));
+
+    return {
+      name: `Korekta refundu: ${refundItem.lineItem.name}`,
+      unit: "szt.",
+      quantity,
+      unitPrice: roundMoney(totalNet / quantity),
+      vatRate: "23" as const,
+      totalNet,
+      totalVat,
+      totalGross: roundMoney(totalNet + totalVat)
+    };
+  });
+}
+
 export async function saveOrderFlag(shop: Shop, input: { orderId: string; orderName: string; isB2b: boolean; nip?: string; buyerName?: string }) {
   const flag = await prisma.orderFlag.upsert({
     where: { shopId_orderId: { shopId: shop.id, orderId: input.orderId } },
@@ -494,22 +572,26 @@ export async function generateCorrectionForInvoice(shop: Shop, invoiceId: string
     throw new Error("Seller NIP and seller name are required in KSeF Settings before correction generation.");
   }
 
-  const lineItems = original.items.map((item) => {
-    const unitPrice = -roundMoney(Number(item.unitPrice));
-    const totalNet = -roundMoney(Number(item.totalNet));
-    const totalVat = -roundMoney(Number(item.totalVat));
+  const order = await fetchShopifyOrder(shop, original.orderId);
+  const refundedItems = refundCorrectionItems(order);
+  const lineItems = refundedItems.length
+    ? refundedItems
+    : original.items.map((item) => {
+        const unitPrice = -roundMoney(Number(item.unitPrice));
+        const totalNet = -roundMoney(Number(item.totalNet));
+        const totalVat = -roundMoney(Number(item.totalVat));
 
-    return {
-      name: `Korekta: ${item.name}`,
-      unit: "szt.",
-      quantity: Math.max(1, item.quantity),
-      unitPrice,
-      vatRate: item.vatRate as "23",
-      totalNet,
-      totalVat,
-      totalGross: roundMoney(totalNet + totalVat)
-    };
-  });
+        return {
+          name: `Korekta: ${item.name}`,
+          unit: "szt.",
+          quantity: Math.max(1, item.quantity),
+          unitPrice,
+          vatRate: item.vatRate as "23",
+          totalNet,
+          totalVat,
+          totalGross: roundMoney(totalNet + totalVat)
+        };
+      });
 
   const amountNet = roundMoney(lineItems.reduce((sum, item) => sum + item.totalNet, 0));
   const amountVat = roundMoney(lineItems.reduce((sum, item) => sum + item.totalVat, 0));
@@ -535,7 +617,7 @@ export async function generateCorrectionForInvoice(shop: Shop, invoiceId: string
     currency: "PLN",
     sourceSystem: "KSeF Pilot Shopify",
     correctionOfInvoiceNumber: originalInvoiceNumber,
-    correctionReason: reason,
+    correctionReason: refundedItems.length ? `${reason}. Wykryto pozycje refundu Shopify.` : reason,
     lineItems
   };
   const validation = validateFa3Input(fa3);

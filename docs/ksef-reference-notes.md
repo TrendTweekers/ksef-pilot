@@ -19,7 +19,7 @@ Reference sources reviewed for KSeF Pilot:
 - `ksef-client-ts@0.8.0` is now installed for the Node/Express app.
 - Live submission mirrors the FakturaFlow flow at a Shopify-safe level: token auth, online FA(3) session, invoice send, session close, reference storage, and retryable error capture.
 - KSeF status/UPO refresh is implemented for live submissions that have both a session reference and invoice reference.
-- Correction invoice drafts are linked to the original Shopify invoice record. The first MVP path is a full negative correction for refunds/order cancellation; partial line-level corrections should come after refund webhook ingestion.
+- Correction invoice drafts are linked to the original Shopify invoice record. When Shopify refund line items are available, the app builds a partial negative correction from `Refund.refundLineItems`; otherwise it falls back to a full negative correction for refunds/order cancellation.
 - The Railway retry hook is intentionally small and queue-driven. It processes due retrying invoices and leaves the merchant UI focused on clear order/invoice actions.
 
 ## Decisions For Shopify App
