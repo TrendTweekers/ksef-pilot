@@ -247,6 +247,45 @@ body {
   padding: 16px;
 }
 
+.invoice-flow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.invoice-flow-step {
+  display: grid;
+  gap: 4px;
+  min-height: 58px;
+  padding: 10px;
+  border: 1px solid var(--ff-border);
+  border-left: 3px solid #d89b00;
+  border-radius: 8px;
+  background: #fffdfa;
+}
+
+.invoice-flow-step.done {
+  border-left-color: var(--ff-success);
+}
+
+.invoice-flow-step.waiting {
+  border-left-color: var(--ff-border);
+  opacity: 0.76;
+}
+
+.invoice-flow-step span {
+  color: var(--ff-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.invoice-flow-step strong {
+  color: var(--ff-ink);
+  font-size: 13px;
+}
+
 .queue-summary {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -411,6 +450,7 @@ body {
   .settings-grid,
   .onboarding-steps,
   .readiness-grid,
+  .invoice-flow,
   .queue-summary,
   .automation-grid,
   .plan-grid,

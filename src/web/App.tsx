@@ -228,6 +228,7 @@ export function App() {
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [invoicePeriod, setInvoicePeriod] = useState<InvoicePeriod>("month");
   const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [invoiceMessage, setInvoiceMessage] = useState("");
   const [invoiceError, setInvoiceError] = useState("");
   const [xmlPreview, setXmlPreview] = useState<{ title: string; xml: string } | null>(null);
   const [bulkGenerating, setBulkGenerating] = useState(false);
@@ -238,6 +239,7 @@ export function App() {
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
   const [xsdValidation, setXsdValidation] = useState<XsdValidationResult | null>(null);
   const [validatingInvoiceId, setValidatingInvoiceId] = useState<string | null>(null);
+  const [bulkValidatingInvoices, setBulkValidatingInvoices] = useState(false);
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
   const [refreshingStatusInvoiceId, setRefreshingStatusInvoiceId] = useState<string | null>(null);
   const [correctingInvoiceId, setCorrectingInvoiceId] = useState<string | null>(null);
@@ -318,6 +320,7 @@ export function App() {
     if (!shop) return;
 
     setInvoicesLoading(true);
+    setInvoiceMessage("");
     setInvoiceError("");
     try {
       const response = await fetch(apiPath(`/api/invoices?period=${invoicePeriod}`));
@@ -623,6 +626,7 @@ export function App() {
 
   async function submitInvoice(invoice: InvoiceRow) {
     setSubmittingInvoiceId(invoice.id);
+    setInvoiceMessage("");
     setInvoiceError("");
     try {
       const response = await fetch(apiPath(`/api/invoices/${invoice.id}/submit`), { method: "POST" });
@@ -633,6 +637,7 @@ export function App() {
       }
 
       await loadInvoices();
+      setInvoiceMessage(t("invoices.submitStarted", { orderName: invoice.orderName }));
       void loadSetupStatus();
     } catch (error) {
       setInvoiceError(error instanceof Error ? error.message : t("invoices.submitError"));
@@ -643,6 +648,7 @@ export function App() {
 
   async function refreshKsefStatus(invoice: InvoiceRow) {
     setRefreshingStatusInvoiceId(invoice.id);
+    setInvoiceMessage("");
     setInvoiceError("");
     try {
       const response = await fetch(apiPath(`/api/invoices/${invoice.id}/refresh-status`), { method: "POST" });
@@ -653,6 +659,7 @@ export function App() {
       }
 
       await loadInvoices();
+      setInvoiceMessage(t("invoices.statusRefreshed", { orderName: invoice.orderName }));
       void loadSetupStatus();
     } catch (error) {
       setInvoiceError(error instanceof Error ? error.message : t("invoices.refreshStatusError"));
@@ -711,6 +718,7 @@ export function App() {
 
   async function createCorrection(invoice: InvoiceRow) {
     setCorrectingInvoiceId(invoice.id);
+    setInvoiceMessage("");
     setInvoiceError("");
     try {
       const response = await fetch(apiPath(`/api/invoices/${invoice.id}/correction`), {
@@ -736,6 +744,7 @@ export function App() {
 
   async function validateInvoice(invoice: InvoiceRow) {
     setValidatingInvoiceId(invoice.id);
+    setInvoiceMessage("");
     setInvoiceError("");
     try {
       const response = await fetch(apiPath(`/api/invoices/${invoice.id}/validate`));
@@ -747,6 +756,9 @@ export function App() {
 
       const result = (await response.json()) as XsdValidationResult;
       setXsdValidation(result);
+      if (result.validation.valid) {
+        setInvoiceMessage(t("invoices.validatePassed", { orderName: result.orderName }));
+      }
       setInvoices((current) =>
         current.map((item) =>
           item.id === result.invoiceId
@@ -765,6 +777,53 @@ export function App() {
       setInvoiceError(error instanceof Error ? error.message : t("invoices.validateError"));
     } finally {
       setValidatingInvoiceId(null);
+    }
+  }
+
+  async function validateVisibleInvoices() {
+    const targets = invoices.filter((invoice) => invoice.fa3ValidationStatus !== "valid" && !invoice.ksefNumber);
+    if (!targets.length) return;
+
+    setBulkValidatingInvoices(true);
+    setInvoiceMessage("");
+    setInvoiceError("");
+    setXsdValidation(null);
+
+    try {
+      let failed = 0;
+      let lastResult: XsdValidationResult | null = null;
+
+      for (const invoice of targets) {
+        const response = await fetch(apiPath(`/api/invoices/${invoice.id}/validate`));
+
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => ({}))) as { error?: string };
+          throw new Error(payload.error ?? t("invoices.validateError"));
+        }
+
+        const result = (await response.json()) as XsdValidationResult;
+        lastResult = result;
+        if (!result.validation.valid) {
+          failed += 1;
+        }
+      }
+
+      if (lastResult) {
+        setXsdValidation(lastResult);
+      }
+
+      await loadInvoices();
+      void loadSetupStatus();
+
+      if (failed) {
+        setInvoiceError(t("invoices.bulkValidateFailed", { failed, total: targets.length }));
+      } else {
+        setInvoiceMessage(t("invoices.bulkValidatePassed", { total: targets.length }));
+      }
+    } catch (error) {
+      setInvoiceError(error instanceof Error ? error.message : t("invoices.validateError"));
+    } finally {
+      setBulkValidatingInvoices(false);
     }
   }
 
@@ -825,6 +884,7 @@ export function App() {
       : "status-dot";
   const ksefBadgeTone: "success" | "attention" = ksefReadiness?.canLiveSubmit ? "success" : "attention";
   const liveSubmissionBlocked = !settings.ksefTestMode && !ksefReadiness?.canLiveSubmit;
+  const validationRequiredCount = invoices.filter((invoice) => invoice.fa3ValidationStatus !== "valid" && !invoice.ksefNumber).length;
   const readinessItems = ksefReadiness
     ? [
         {
@@ -859,6 +919,20 @@ export function App() {
         }
       ]
     : [];
+  function invoiceFlowSteps(invoice: InvoiceRow) {
+    const valid = invoice.fa3ValidationStatus === "valid";
+    const submitted = Boolean(invoice.submission) || Boolean(invoice.ksefNumber);
+    const hasReference = Boolean(invoice.submission?.invoiceReferenceNumber || invoice.ksefNumber);
+    const finalDone = Boolean(invoice.ksefNumber || invoice.hasUpo);
+
+    return [
+      { label: t("invoices.flow.draft"), done: true, waiting: false },
+      { label: t("invoices.flow.validate"), done: valid, waiting: false },
+      { label: t("invoices.flow.submit"), done: submitted, waiting: !valid },
+      { label: settings.ksefTestMode ? t("invoices.flow.testNumber") : t("invoices.flow.reference"), done: hasReference, waiting: !submitted },
+      { label: settings.ksefTestMode ? t("invoices.flow.testComplete") : t("invoices.flow.upo"), done: finalDone, waiting: !hasReference }
+    ];
+  }
 
   return (
     <>
@@ -1320,6 +1394,7 @@ export function App() {
                             ? t("invoices.liveReadyBanner")
                             : t("invoices.liveBlockedBanner")}
                       </Banner>
+                      {invoiceMessage ? <Banner tone="success">{invoiceMessage}</Banner> : null}
                       {invoiceError ? <Banner tone="critical">{invoiceError}</Banner> : null}
                       {xsdValidation ? (
                         <Banner tone={xsdValidation.validation.valid ? "success" : "critical"}>
@@ -1363,6 +1438,13 @@ export function App() {
                           />
                         </div>
                         <InlineStack gap="200">
+                          <Button
+                            disabled={!validationRequiredCount}
+                            loading={bulkValidatingInvoices}
+                            onClick={validateVisibleInvoices}
+                          >
+                            {t("invoices.validateAll", { count: validationRequiredCount })}
+                          </Button>
                           <Button onClick={loadInvoices} loading={invoicesLoading}>
                             {t("common.refresh")}
                           </Button>
@@ -1457,6 +1539,23 @@ export function App() {
                                     count: invoice.itemCount
                                   })}
                                 </Text>
+                                <div className="invoice-flow">
+                                  {invoiceFlowSteps(invoice).map((step) => (
+                                    <div
+                                      className={step.done ? "invoice-flow-step done" : step.waiting ? "invoice-flow-step waiting" : "invoice-flow-step next"}
+                                      key={step.label}
+                                    >
+                                      <span>{step.label}</span>
+                                      <strong>
+                                        {step.done
+                                          ? t("invoices.flow.done")
+                                          : step.waiting
+                                            ? t("invoices.flow.waiting")
+                                            : t("invoices.flow.next")}
+                                      </strong>
+                                    </div>
+                                  ))}
+                                </div>
                               </BlockStack>
                               <InlineStack gap="200">
                                 <Button loading={validatingInvoiceId === invoice.id} onClick={() => validateInvoice(invoice)}>
