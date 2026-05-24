@@ -216,6 +216,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           rememberedNips: "Zapisane numery NIP są pamiętane przy kliencie Shopify i uzupełniane w kolejnych zamówieniach B2B.",
           blockedSummary:
             "{{count}} zamówienie/zamówienia B2B wymaga ręcznego wystawienia, bo zawiera walutę albo VAT poza obecnym zakresem MVP.",
+          blockedTitle: "Zamówienia do ręcznego wystawienia",
+          blockedDescription: "Nie ukrywamy takich zamówień. Sprzedawca musi wiedzieć, które faktury trzeba obsłużyć poza automatem.",
           unsupported: {
             non_pln:
               "To zamówienie jest w walucie innej niż PLN. Obsługa walut obcych i przeliczeń VAT jest w przygotowaniu — fakturę wystaw ręcznie.",
@@ -242,6 +244,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           validateFailed: "{{orderName}} nie przeszło oficjalnej walidacji XSD FA(3): {{count}} błędów.",
           bulkValidatePassed: "Walidacja zakończona: {{total}} faktur jest gotowych do następnego kroku.",
           bulkValidateFailed: "Walidacja zakończona: {{failed}} z {{total}} faktur wymaga poprawy przed wysyłką.",
+          bulkSubmitStarted: "Wysłano do kolejki KSeF: {{total}} faktur.",
+          bulkSubmitFailed: "Wysyłka zakończona z błędami: {{failed}} z {{total}} faktur wymaga sprawdzenia.",
           validationRequired: "wymaga walidacji",
           validationValid: "FA(3) OK",
           validationInvalid: "FA(3) błąd",
@@ -257,6 +261,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           createdLine: "Utworzono {{date}} - pozycji: {{count}}",
           validate: "Waliduj FA(3)",
           validateAll: "Waliduj widoczne ({{count}})",
+          submitReady: "Wyślij gotowe ({{count}}, {{mode}})",
           previewXml: "Podgląd XML",
           downloadPdf: "Pobierz PDF",
           downloadXml: "Pobierz XML",
@@ -579,6 +584,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           rememberedNips: "Saved buyer NIPs are remembered by Shopify customer and used to prefill future B2B orders.",
           blockedSummary:
             "{{count}} B2B order(s) need manual invoicing because currency or VAT is outside the current MVP scope.",
+          blockedTitle: "Orders to invoice manually",
+          blockedDescription: "These are shown on purpose so merchants know exactly which invoices need handling outside automation.",
           unsupported: {
             non_pln:
               "This order uses a non-PLN currency. Foreign-currency and VAT conversion support is in progress; issue this invoice manually for now.",
@@ -605,6 +612,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           validateFailed: "{{orderName}} failed official FA(3) XSD validation with {{count}} issue(s).",
           bulkValidatePassed: "Validation finished: {{total}} invoice(s) are ready for the next step.",
           bulkValidateFailed: "Validation finished: {{failed}} of {{total}} invoice(s) need fixes before submission.",
+          bulkSubmitStarted: "{{total}} invoice(s) sent to the KSeF queue.",
+          bulkSubmitFailed: "Submission finished with errors: {{failed}} of {{total}} invoice(s) need review.",
           validationRequired: "validation required",
           validationValid: "FA(3) OK",
           validationInvalid: "FA(3) failed",
@@ -620,6 +629,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           createdLine: "Created {{date}} - {{count}} line item(s)",
           validate: "Validate FA(3)",
           validateAll: "Validate visible ({{count}})",
+          submitReady: "Submit ready ({{count}}, {{mode}})",
           previewXml: "Preview XML",
           downloadPdf: "Download PDF",
           downloadXml: "Download XML",

@@ -272,6 +272,7 @@ export function App() {
   const [validatingInvoiceId, setValidatingInvoiceId] = useState<string | null>(null);
   const [bulkValidatingInvoices, setBulkValidatingInvoices] = useState(false);
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
+  const [bulkSubmittingInvoices, setBulkSubmittingInvoices] = useState(false);
   const [refreshingStatusInvoiceId, setRefreshingStatusInvoiceId] = useState<string | null>(null);
   const [correctingInvoiceId, setCorrectingInvoiceId] = useState<string | null>(null);
   const [queueStatus, setQueueStatus] = useState<QueueStatus>("all");
@@ -840,40 +841,67 @@ export function App() {
     setXsdValidation(null);
 
     try {
-      let failed = 0;
-      let lastResult: XsdValidationResult | null = null;
+      const response = await fetch(apiPath("/api/invoices/bulk-validate"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ period: invoicePeriod, limit: 100 })
+      });
 
-      for (const invoice of targets) {
-        const response = await fetch(apiPath(`/api/invoices/${invoice.id}/validate`));
-
-        if (!response.ok) {
-          const payload = (await response.json().catch(() => ({}))) as { error?: string };
-          throw new Error(payload.error ?? t("invoices.validateError"));
-        }
-
-        const result = (await response.json()) as XsdValidationResult;
-        lastResult = result;
-        if (!result.validation.valid) {
-          failed += 1;
-        }
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? t("invoices.validateError"));
       }
 
-      if (lastResult) {
-        setXsdValidation(lastResult);
-      }
-
+      const result = (await response.json()) as { checked: number; valid: number; invalid: number };
       await loadInvoices();
       void loadSetupStatus();
 
-      if (failed) {
-        setInvoiceError(t("invoices.bulkValidateFailed", { failed, total: targets.length }));
+      if (result.invalid) {
+        setInvoiceError(t("invoices.bulkValidateFailed", { failed: result.invalid, total: result.checked }));
       } else {
-        setInvoiceMessage(t("invoices.bulkValidatePassed", { total: targets.length }));
+        setInvoiceMessage(t("invoices.bulkValidatePassed", { total: result.checked }));
       }
     } catch (error) {
       setInvoiceError(error instanceof Error ? error.message : t("invoices.validateError"));
     } finally {
       setBulkValidatingInvoices(false);
+    }
+  }
+
+  async function submitReadyInvoices() {
+    const targets = invoices.filter((invoice) => invoice.fa3ValidationStatus === "valid" && !invoice.ksefNumber);
+    if (!targets.length) return;
+
+    setBulkSubmittingInvoices(true);
+    setInvoiceMessage("");
+    setInvoiceError("");
+
+    try {
+      const response = await fetch(apiPath("/api/invoices/bulk-submit"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ period: invoicePeriod, limit: 100 })
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? t("invoices.submitError"));
+      }
+
+      const result = (await response.json()) as { attempted: number; submitted: number; failed: number };
+      await loadInvoices();
+      void loadQueue();
+      void loadSetupStatus();
+
+      if (result.failed) {
+        setInvoiceError(t("invoices.bulkSubmitFailed", { failed: result.failed, total: result.attempted }));
+      } else {
+        setInvoiceMessage(t("invoices.bulkSubmitStarted", { total: result.submitted }));
+      }
+    } catch (error) {
+      setInvoiceError(error instanceof Error ? error.message : t("invoices.submitError"));
+    } finally {
+      setBulkSubmittingInvoices(false);
     }
   }
 
@@ -905,7 +933,8 @@ export function App() {
   const readyVisibleCount = orders.filter(
     (order) => order.isB2b && !order.processed && !order.unsupportedReason && order.buyerNip.replace(/\D/g, "").length === 10
   ).length;
-  const blockedOrderCount = orders.filter((order) => order.isB2b && !order.processed && order.unsupportedReason).length;
+  const blockedOrders = orders.filter((order) => order.isB2b && !order.processed && order.unsupportedReason);
+  const blockedOrderCount = blockedOrders.length;
   const limitReached = billing ? !billing.canGenerate : false;
   const locale = i18n.language.startsWith("en") ? "en" : "pl";
   const currentPlanName = billing ? t(`plans.${billing.plan}`, { defaultValue: billing.planName }) : "";
@@ -936,6 +965,7 @@ export function App() {
   const liveSubmissionBlocked = !settings.ksefTestMode && !ksefReadiness?.canLiveSubmit;
   const liveSettingsSaveBlocked = !settings.ksefTestMode && !liveSubmissionAcknowledged;
   const validationRequiredCount = invoices.filter((invoice) => invoice.fa3ValidationStatus !== "valid" && !invoice.ksefNumber).length;
+  const submitReadyCount = invoices.filter((invoice) => invoice.fa3ValidationStatus === "valid" && !invoice.ksefNumber).length;
   const testRunComplete = Boolean(setupStatus?.items.some((item) => item.id === "test" && item.done));
   const readinessItems = ksefReadiness
     ? [
@@ -1355,6 +1385,38 @@ export function App() {
                       {blockedOrderCount ? (
                         <Banner tone="warning">{t("orders.blockedSummary", { count: blockedOrderCount })}</Banner>
                       ) : null}
+                      {blockedOrderCount ? (
+                        <div className="blocked-orders">
+                          <InlineStack align="space-between" blockAlign="center" gap="300">
+                            <BlockStack gap="100">
+                              <Text as="h3" variant="headingMd">
+                                {t("orders.blockedTitle")}
+                              </Text>
+                              <Text as="p" tone="subdued">
+                                {t("orders.blockedDescription")}
+                              </Text>
+                            </BlockStack>
+                            <Badge tone="attention">{String(blockedOrderCount)}</Badge>
+                          </InlineStack>
+                          <div className="blocked-order-list">
+                            {blockedOrders.slice(0, 8).map((order) => (
+                              <div className="blocked-order-item" key={order.id}>
+                                <Text as="p" fontWeight="semibold">
+                                  {order.name}
+                                </Text>
+                                <Text as="p" tone="subdued">
+                                  {order.totalGross.toFixed(2)} {order.currency}
+                                </Text>
+                                <Text as="p" tone="subdued">
+                                  {t(`orders.unsupported.${order.unsupportedReason}`, {
+                                    defaultValue: t("orders.unsupported.default")
+                                  })}
+                                </Text>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                       {orderError ? (
                         <Banner tone="critical">
                           <BlockStack gap="200">
@@ -1544,6 +1606,14 @@ export function App() {
                             onClick={validateVisibleInvoices}
                           >
                             {t("invoices.validateAll", { count: validationRequiredCount })}
+                          </Button>
+                          <Button
+                            variant="primary"
+                            disabled={!submitReadyCount || liveSubmissionBlocked}
+                            loading={bulkSubmittingInvoices}
+                            onClick={submitReadyInvoices}
+                          >
+                            {t("invoices.submitReady", { count: submitReadyCount, mode: submissionModeLabel })}
                           </Button>
                           <Button onClick={loadInvoices} loading={invoicesLoading}>
                             {t("common.refresh")}

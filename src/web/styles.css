@@ -121,6 +121,31 @@ body {
   line-height: 1;
 }
 
+.blocked-orders {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--ff-border);
+  border-left: 3px solid #d89b00;
+  border-radius: 8px;
+  background: #fffdfa;
+}
+
+.blocked-order-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.blocked-order-item {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--ff-border);
+  border-radius: 8px;
+  background: var(--ff-card);
+}
+
 .settings-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
@@ -550,6 +575,7 @@ body {
   .queue-summary,
   .automation-grid,
   .launch-grid,
+  .blocked-order-list,
   .plan-grid,
   .setup-grid,
   .order-fields {

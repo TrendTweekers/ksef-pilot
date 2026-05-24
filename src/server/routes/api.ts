@@ -53,6 +53,10 @@ const correctionSchema = z.object({
 });
 
 const invoicePeriodSchema = z.enum(["week", "month", "all"]).default("month");
+const invoiceBulkSchema = z.object({
+  period: invoicePeriodSchema.default("month"),
+  limit: z.coerce.number().int().min(1).max(100).default(50)
+});
 
 const fa3LineSchema = z.object({
   name: z.string().min(1),
@@ -985,6 +989,130 @@ apiRouter.get("/invoices", loadShop, async (req, res, next) => {
             : null
         };
       })
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post("/invoices/bulk-validate", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const input = invoiceBulkSchema.parse(req.body ?? {});
+    const createdAt = invoicePeriodRange(input.period);
+    const invoices = await prisma.ksefInvoice.findMany({
+      where: {
+        shopId: shop.id,
+        ksefNumber: null,
+        OR: [{ fa3ValidationStatus: null }, { fa3ValidationStatus: { not: "valid" } }],
+        ...(Object.keys(createdAt).length ? { createdAt } : {})
+      },
+      orderBy: { createdAt: "asc" },
+      take: input.limit
+    });
+    const results = [];
+    let valid = 0;
+    let invalid = 0;
+
+    for (const invoice of invoices) {
+      const validation = await validateFa3XmlAgainstOfficialXsd(invoice.fa3Xml);
+      const validationError = validation.valid
+        ? null
+        : validation.issues.slice(0, 5).map((issue) => `${issue.code}: ${issue.message}`).join("\n");
+      const updated = await prisma.ksefInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          fa3ValidatedAt: new Date(),
+          fa3ValidationStatus: validation.valid ? "valid" : "invalid",
+          fa3ValidationError: validationError,
+          lastError: validation.valid ? null : validationError
+        }
+      });
+
+      if (validation.valid) {
+        valid += 1;
+      } else {
+        invalid += 1;
+      }
+
+      results.push({
+        invoiceId: invoice.id,
+        orderName: invoice.orderName,
+        valid: validation.valid,
+        issueCount: validation.issueCount,
+        fa3ValidatedAt: updated.fa3ValidatedAt,
+        fa3ValidationStatus: updated.fa3ValidationStatus,
+        fa3ValidationError: updated.fa3ValidationError
+      });
+    }
+
+    res.json({
+      checked: invoices.length,
+      valid,
+      invalid,
+      results
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post("/invoices/bulk-submit", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const input = invoiceBulkSchema.parse(req.body ?? {});
+    const createdAt = invoicePeriodRange(input.period);
+    const invoices = await prisma.ksefInvoice.findMany({
+      where: {
+        shopId: shop.id,
+        ksefNumber: null,
+        fa3ValidationStatus: "valid",
+        status: { in: ["draft", "exported", "error"] },
+        ...(Object.keys(createdAt).length ? { createdAt } : {})
+      },
+      orderBy: { createdAt: "asc" },
+      take: input.limit
+    });
+    const results = [];
+    let submitted = 0;
+    let failed = 0;
+
+    for (const invoice of invoices) {
+      try {
+        const result = await submitInvoiceToKsef(shop, invoice.id);
+        submitted += result.submission ? 1 : 0;
+        results.push({
+          invoiceId: invoice.id,
+          orderName: invoice.orderName,
+          ok: true,
+          status: result.invoice.status,
+          submissionStatus: result.submission?.status ?? null,
+          ksefNumber: result.invoice.ksefNumber ?? result.submission?.ksefNumber ?? null,
+          lastError: result.submission?.lastError ?? null
+        });
+      } catch (error) {
+        failed += 1;
+        results.push({
+          invoiceId: invoice.id,
+          orderName: invoice.orderName,
+          ok: false,
+          status: invoice.status,
+          submissionStatus: null,
+          ksefNumber: null,
+          lastError: error instanceof Error ? error.message : "Unknown KSeF submission error"
+        });
+      }
+    }
+
+    if (submitted) {
+      await notifyTelegram(`KSeF Pilot bulk submit: ${shop.domain} ${submitted}/${invoices.length} invoice(s) queued (${shop.ksefTestMode ? "test" : "live"})`);
+    }
+
+    res.json({
+      attempted: invoices.length,
+      submitted,
+      failed,
+      results
     });
   } catch (error) {
     next(error);
