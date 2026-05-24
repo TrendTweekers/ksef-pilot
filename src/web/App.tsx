@@ -883,7 +883,7 @@ export function App() {
       return;
     }
 
-    window.top?.location.assign(billing.managedPricingUrl);
+    window.open(billing.managedPricingUrl, "_top");
   }
 
   async function dismissReview() {
