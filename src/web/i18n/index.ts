@@ -98,8 +98,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             open: "Waliduj każdy szkic faktury oficjalną schemą FA(3)."
           },
           test: {
-            done: "Pelny test przeplywu KSeF zostal wykonany bez wysylki do rzadowego API.",
-            open: "Wyslij jeden zwalidowany szkic w trybie testowym. Aplikacja utworzy lokalny numer testowy i nie wysle nic do KSeF."
+            done: "Pełny test przepływu KSeF został wykonany bez wysyłki do rządowego API.",
+            open: "Wyślij jeden zwalidowany szkic w trybie testowym. Aplikacja utworzy lokalny numer testowy i nie wyśle nic do KSeF."
           }
         },
         settings: {
@@ -285,8 +285,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             "Tryb live jest gotowy. Wysyłka zwaliduje FA(3), połączy się z KSeF i zapisze numer referencyjny.",
           liveBlockedBanner:
             "Tryb live nie jest jeszcze gotowy. Sprawdź panel gotowości w ustawieniach KSeF przed wysyłką.",
-          testRunComplete: "Bezpieczny test zakonczony: szkic zostal zwalidowany i przeszedl testowa wysylke bez polaczenia z KSeF.",
-          testRunNext: "Nastepny krok: zwaliduj szkic FA(3), a potem wyslij go w trybie testowym. To nie wykona polaczenia z KSeF.",
+          testRunComplete: "Bezpieczny test zakończony: szkic został zwalidowany i przeszedł testową wysyłkę bez połączenia z KSeF.",
+          testRunNext: "Następny krok: zwaliduj szkic FA(3), a potem wyślij go w trybie testowym. To nie wykona połączenia z KSeF.",
           ksefApproved: "Faktura zatwierdzona w KSeF: {{number}}",
           openError: "Nie udało się otworzyć XML faktury.",
           validateError: "Nie udało się zwalidować XML faktury.",
@@ -311,8 +311,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           automationTitle: "Zdrowie automatyzacji",
           automationDescription:
             "Railway powinien cyklicznie wywoływać retry i odświeżanie statusów, aby faktury same przechodziły przez KSeF.",
-          launchTitle: "Gotowosc uruchomienia",
-          launchDescription: "Wewnetrzna lista kontrolna: Railway, webhooki Shopify, billing, worker, alerty i bezpieczny test.",
+          launchTitle: "Gotowość uruchomienia",
+          launchDescription: "Wewnętrzna lista kontrolna: Railway, webhooki Shopify, billing, worker, alerty i bezpieczny test.",
           launchReady: "Gotowe",
           launchNeedsWork: "Do poprawy",
           launchChecked: "Sprawdzono: {{date}}",
