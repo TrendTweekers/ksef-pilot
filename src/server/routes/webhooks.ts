@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { Router } from "express";
 import { env } from "../config/env.js";
 import { prisma } from "../config/prisma.js";
+import { applyBillingWebhookUpdate } from "../services/billing.js";
 import { notifyTelegram } from "../services/telegram.js";
 
 export const webhookRouter = Router();
@@ -94,17 +95,14 @@ webhookRouter.post("/shopify", async (req, res, next) => {
     }
 
     if (topic === "app_subscriptions/update" || topic === "APP_SUBSCRIPTIONS_UPDATE") {
-      const appSubscription =
-        payload.app_subscription && typeof payload.app_subscription === "object"
-          ? (payload.app_subscription as Record<string, unknown>)
-          : null;
-      await prisma.shop.updateMany({
-        where: { domain: shopDomain },
-        data: {
-          billingStatus: String(appSubscription?.status ?? payload.status ?? "updated")
-        }
-      });
-      await notifyTelegram(`KSeF Pilot — billing update for ${shopDomain}: ${JSON.stringify(payload).slice(0, 500)}`);
+      const update = await applyBillingWebhookUpdate(shopDomain, payload);
+      const status = update.parsed.status ?? "updated";
+      const planChange =
+        update.previousPlan && update.nextPlan && update.previousPlan !== update.nextPlan
+          ? `${update.previousPlan} -> ${update.nextPlan}`
+          : update.nextPlan ?? "unknown";
+
+      await notifyTelegram(`KSeF Pilot - billing update: ${shopDomain} status ${status}, plan ${planChange}`);
     }
 
     if (topic === "refunds/create" || topic === "REFUNDS_CREATE") {

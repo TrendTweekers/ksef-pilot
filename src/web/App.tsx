@@ -157,11 +157,13 @@ interface AutomationHealth {
 
 interface BillingSummary {
   plan: string;
+  storedPlan: string;
   planName: string;
   limit: number | null;
   used: number;
   remaining: number | null;
   billingStatus: string;
+  paidPlanInactive: boolean;
   canGenerate: boolean;
   managedPricingUrl: string;
   plans: Record<string, { name: string; price: number; limit: number | null }>;
@@ -1819,6 +1821,14 @@ export function App() {
                     <BlockStack gap="400">
                       {billingError ? <Banner tone="critical">{billingError}</Banner> : null}
                       <Banner tone="info">{t("billing.managed")}</Banner>
+                      {billing?.paidPlanInactive ? (
+                        <Banner tone="warning">
+                          {t("billing.inactivePaidPlan", {
+                            defaultValue:
+                              "Poprzedni platny plan nie jest aktywny w Shopify, dlatego obowiazuje limit planu Free do czasu zatwierdzenia platnosci."
+                          })}
+                        </Banner>
+                      ) : null}
                       {billing ? (
                         <div className="billing-summary">
                           <BlockStack gap="100">

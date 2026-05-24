@@ -156,6 +156,17 @@ When autorun is enabled, the web process checks due retries and pending KSeF sta
 
 The app's KSeF Queue tab exposes an automation health panel with due retries, pending status refreshes, failed submissions, and whether `KSEF_WORKER_SECRET` is configured.
 
+## Shopify Managed Pricing
+
+KSeF Pilot does not create charges inside the app. Merchants are sent to Shopify's Managed Pricing page, and the app only reads the resulting plan state from Shopify subscription webhooks.
+
+- Free: 5 invoices/month
+- Basic: 50 invoices/month
+- Pro: 200 invoices/month
+- Unlimited: unlimited invoices
+
+If a paid subscription is cancelled, declined, expired, or otherwise not active, KSeF Pilot falls back to the Free limit until Shopify sends an active subscription update again. Keep the `APP_SUBSCRIPTIONS_UPDATE` webhook registered so Railway receives plan changes immediately.
+
 ## Critical Compliance Notes
 
 - KSeF tokens must remain encrypted at rest.
