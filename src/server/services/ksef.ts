@@ -23,34 +23,45 @@ export async function testKsefToken(encryptedToken: string, sellerNip?: string |
   const token = decryptSecret(encryptedToken);
   const checkedAt = new Date().toISOString();
 
-  if (env.KSEF_LIVE_SUBMISSION_ENABLED && sellerNip) {
-    try {
-      const client = createClient();
-      await client.crypto.init();
-      const login = await client.loginWithToken(token, sellerNip.replace(/\D/g, ""));
-      await client.logout().catch(() => undefined);
-
-      return {
-        connected: true,
-        checkedAt,
-        environment: ksefEnvironment(),
-        clientIp: login.clientIp
-      };
-    } catch (error) {
-      return {
-        connected: false,
-        checkedAt,
-        environment: ksefEnvironment(),
-        error: errorMessage(error)
-      };
-    }
+  if (!sellerNip) {
+    return {
+      connected: false,
+      checkedAt,
+      environment: ksefEnvironment(),
+      error: "ERR_KSEF_006: Seller NIP is required before testing a KSeF token."
+    };
   }
 
-  return {
-    connected: token.trim().length > 0,
-    checkedAt,
-    environment: "LOCAL"
-  };
+  if (!env.KSEF_LIVE_SUBMISSION_ENABLED) {
+    return {
+      connected: false,
+      checkedAt,
+      environment: ksefEnvironment(),
+      error:
+        "ERR_KSEF_001: KSeF API calls are disabled on this server. Set KSEF_LIVE_SUBMISSION_ENABLED=true before saving a real KSeF token."
+    };
+  }
+
+  try {
+    const client = createClient();
+    await client.crypto.init();
+    const login = await client.loginWithToken(token, sellerNip.replace(/\D/g, ""));
+    await client.logout().catch(() => undefined);
+
+    return {
+      connected: true,
+      checkedAt,
+      environment: ksefEnvironment(),
+      clientIp: login.clientIp
+    };
+  } catch (error) {
+    return {
+      connected: false,
+      checkedAt,
+      environment: ksefEnvironment(),
+      error: errorMessage(error)
+    };
+  }
 }
 
 function xmlHash(xml: string) {

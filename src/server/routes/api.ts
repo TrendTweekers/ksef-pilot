@@ -249,6 +249,24 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
     const encryptedToken = input.token ? encryptSecret(input.token) : undefined;
     const sellerNip = input.sellerNip?.replace(/\D/g, "") || shop.sellerNip;
     const testResult = encryptedToken ? await testKsefToken(encryptedToken, sellerNip) : null;
+    const sellerNipChanged = Boolean(sellerNip && shop.sellerNip && sellerNip !== shop.sellerNip);
+
+    if (encryptedToken && !testResult?.connected) {
+      res.status(400).json({
+        error: testResult?.error ?? "KSeF token test failed. The token was not saved.",
+        tokenTestError: testResult?.error,
+        checkedAt: testResult?.checkedAt,
+        connected: false,
+        hasToken: Boolean(shop.ksefToken),
+        sellerNip: shop.sellerNip ?? "",
+        sellerName: shop.sellerName ?? "",
+        sellerAddress: shop.sellerAddress ?? "",
+        placeOfIssue: shop.placeOfIssue ?? "",
+        ksefTestMode: shop.ksefTestMode,
+        readiness: buildKsefReadiness(shop)
+      });
+      return;
+    }
 
     const updated = await prisma.shop.update({
       where: { id: shop.id },
@@ -258,7 +276,9 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
               ksefToken: encryptedToken,
               ksefConnected: testResult?.connected ?? false
             }
-          : {}),
+          : sellerNipChanged
+            ? { ksefConnected: false }
+            : {}),
         sellerNip: sellerNip || null,
         sellerName: input.sellerName?.trim() || null,
         sellerAddress: input.sellerAddress?.trim() || null,
@@ -269,6 +289,7 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
 
     res.json({
       connected: updated.ksefConnected,
+      hasToken: Boolean(updated.ksefToken),
       checkedAt: testResult?.checkedAt,
       tokenTestError: testResult?.error,
       sellerNip: updated.sellerNip ?? "",

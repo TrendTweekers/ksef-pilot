@@ -131,6 +131,54 @@ body {
   padding: 16px;
 }
 
+.onboarding-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.onboarding-step {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--ff-border);
+  border-radius: 8px;
+  background: #fffdfa;
+}
+
+.onboarding-step > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--ff-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.token-status {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--ff-border);
+  border-left: 3px solid #d89b00;
+  border-radius: 8px;
+  background: #fffdfa;
+}
+
+.token-status.connected {
+  border-left-color: var(--ff-success);
+}
+
+.token-status.warning {
+  border-left-color: #d89b00;
+}
+
 .readiness-card {
   padding: 16px;
   border: 1px solid var(--ff-border);
@@ -361,6 +409,7 @@ body {
   .app-hero,
   .stat-grid,
   .settings-grid,
+  .onboarding-steps,
   .readiness-grid,
   .queue-summary,
   .automation-grid,

@@ -214,6 +214,7 @@ export function App() {
     ksefTestMode: true
   });
   const [saving, setSaving] = useState(false);
+  const [hasKsefToken, setHasKsefToken] = useState(false);
   const [connectionState, setConnectionState] = useState<"unknown" | "connected" | "error">("unknown");
   const [ksefReadiness, setKsefReadiness] = useState<KsefReadiness | null>(null);
   const [settingsMessage, setSettingsMessage] = useState("");
@@ -284,6 +285,7 @@ export function App() {
       ksefTestMode: result.ksefTestMode ?? true
     });
     setKsefReadiness(result.readiness ?? null);
+    setHasKsefToken(result.hasToken ?? false);
     setConnectionState(result.connected ? "connected" : "unknown");
   }
 
@@ -427,7 +429,7 @@ export function App() {
     }
   }, [shop, queueStatus, view]);
 
-  async function saveToken() {
+  async function saveSettings(includeToken = false) {
     if (!shop) {
       setSettingsError(t("settings.missingShop"));
       return;
@@ -441,7 +443,7 @@ export function App() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          token: token || undefined,
+          token: includeToken ? token || undefined : undefined,
           ...settings
         })
       });
@@ -460,8 +462,11 @@ export function App() {
         ksefTestMode: result.ksefTestMode ?? true
       });
       setKsefReadiness(result.readiness ?? null);
+      setHasKsefToken(result.hasToken ?? false);
       setConnectionState(result.connected ? "connected" : "unknown");
-      setToken("");
+      if (includeToken && result.connected) {
+        setToken("");
+      }
       setSettingsMessage(t(result.connected ? "settings.connectedSaved" : "settings.saved"));
       if (result.tokenTestError) {
         setSettingsError(result.tokenTestError);
@@ -995,6 +1000,41 @@ export function App() {
                   {view === "settings" ? (
                     <BlockStack gap="300">
                       <Banner tone="info">{t("settings.safeTest")}</Banner>
+                      <div className="onboarding-steps">
+                        <div className="onboarding-step">
+                          <span>1</span>
+                          <div>
+                            <Text as="h3" variant="headingSm">
+                              {t("settings.onboardingSellerTitle")}
+                            </Text>
+                            <Text as="p" tone="subdued">
+                              {t("settings.onboardingSellerBody")}
+                            </Text>
+                          </div>
+                        </div>
+                        <div className="onboarding-step">
+                          <span>2</span>
+                          <div>
+                            <Text as="h3" variant="headingSm">
+                              {t("settings.onboardingTokenTitle")}
+                            </Text>
+                            <Text as="p" tone="subdued">
+                              {t("settings.onboardingTokenBody")}
+                            </Text>
+                          </div>
+                        </div>
+                        <div className="onboarding-step">
+                          <span>3</span>
+                          <div>
+                            <Text as="h3" variant="headingSm">
+                              {t("settings.onboardingLiveTitle")}
+                            </Text>
+                            <Text as="p" tone="subdued">
+                              {t("settings.onboardingLiveBody")}
+                            </Text>
+                          </div>
+                        </div>
+                      </div>
                       <Checkbox
                         label={t("settings.testMode")}
                         checked={settings.ksefTestMode}
@@ -1084,6 +1124,25 @@ export function App() {
                             <Text as="h3" variant="headingMd">
                               {t("settings.ksefSection")}
                             </Text>
+                            <div className={connectionState === "connected" ? "token-status connected" : hasKsefToken ? "token-status warning" : "token-status"}>
+                              <span className={connectionState === "connected" ? "status-dot connected" : "status-dot"} />
+                              <div>
+                                <Text as="p" fontWeight="semibold">
+                                  {connectionState === "connected"
+                                    ? t("settings.tokenConnectedTitle")
+                                    : hasKsefToken
+                                      ? t("settings.tokenNeedsRetestTitle")
+                                      : t("settings.tokenMissingTitle")}
+                                </Text>
+                                <Text as="p" tone="subdued">
+                                  {connectionState === "connected"
+                                    ? t("settings.tokenConnectedBody")
+                                    : hasKsefToken
+                                      ? t("settings.tokenNeedsRetestBody")
+                                      : t("settings.tokenMissingBody")}
+                                </Text>
+                              </div>
+                            </div>
                             <TextField
                               label={t("settings.tokenLabel")}
                               value={token}
@@ -1101,11 +1160,11 @@ export function App() {
                         </div>
                       </div>
                       <InlineStack gap="200">
-                        <Button variant="primary" loading={saving} disabled={!shop} onClick={saveToken}>
+                        <Button variant="primary" loading={saving} disabled={!shop} onClick={() => saveSettings(false)}>
                           {t("settings.save")}
                         </Button>
-                        <Button disabled={!token || !shop} onClick={saveToken}>
-                          {t("settings.test")}
+                        <Button disabled={!token || !shop || !settings.sellerNip} onClick={() => saveSettings(true)}>
+                          {t("settings.saveAndTest")}
                         </Button>
                       </InlineStack>
                     </BlockStack>
