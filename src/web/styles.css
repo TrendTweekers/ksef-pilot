@@ -78,6 +78,10 @@ body {
   background: var(--ff-success);
 }
 
+.status-dot.danger {
+  background: var(--ff-red);
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -124,6 +128,58 @@ body {
 
 .settings-panel {
   padding: 16px;
+}
+
+.readiness-card {
+  padding: 16px;
+  border: 1px solid var(--ff-border);
+  border-radius: 8px;
+  background: #fffdfa;
+}
+
+.readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.readiness-item {
+  display: grid;
+  gap: 5px;
+  min-height: 74px;
+  padding: 12px;
+  border: 1px solid var(--ff-border);
+  border-left: 3px solid #d89b00;
+  border-radius: 8px;
+  background: var(--ff-card);
+}
+
+.readiness-item.ok {
+  border-left-color: var(--ff-success);
+}
+
+.readiness-item.warn {
+  border-left-color: #d89b00;
+}
+
+.readiness-item span {
+  color: var(--ff-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.readiness-item strong {
+  color: var(--ff-ink);
+  font-size: 14px;
+}
+
+.readiness-issues {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--ff-paper);
 }
 
 .test-note {
@@ -237,6 +293,7 @@ body {
   .app-hero,
   .stat-grid,
   .settings-grid,
+  .readiness-grid,
   .plan-grid,
   .setup-grid,
   .order-fields {

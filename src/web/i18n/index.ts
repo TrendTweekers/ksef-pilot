@@ -121,7 +121,35 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           saveError: "Nie udało się zapisać ustawień.",
           missingShop: "Shopify nie przekazało domeny sklepu. Otwórz aplikację ponownie z menu Aplikacje w panelu Shopify.",
           connected: "Połączono",
-          notConnected: "Nie połączono"
+          notConnected: "Nie połączono",
+          safeModeStatus: "Bezpieczny test",
+          liveReadyStatus: "Live gotowy",
+          liveNeedsSetupStatus: "Live wymaga konfiguracji",
+          liveDisabledStatus: "Live wyłączony na serwerze",
+          readinessTitle: "Gotowość do wysyłki KSeF",
+          readinessEnvironment: "Środowisko",
+          readinessServerLive: "Wysyłka live na serwerze",
+          readinessMerchantMode: "Tryb sklepu",
+          readinessToken: "Token KSeF",
+          readinessSellerNip: "NIP sprzedawcy",
+          readinessLiveReady: "Gotowe do live",
+          enabled: "Włączone",
+          disabled: "Wyłączone",
+          safeMode: "Bezpieczny test",
+          liveMode: "Live",
+          savedValue: "Zapisano",
+          missingValue: "Brak",
+          yes: "Tak",
+          no: "Nie",
+          liveServerDisabledBanner:
+            "Tryb live jest wybrany w sklepie, ale serwer Railway nie ma jeszcze włączonej zmiennej KSEF_LIVE_SUBMISSION_ENABLED. Faktury nie zostaną wysłane do KSeF.",
+          readinessIssues: {
+            test_mode_on: "Wyłącz tryb testowy dopiero wtedy, gdy chcesz wysyłać prawdziwe faktury.",
+            server_live_disabled: "Ustaw KSEF_LIVE_SUBMISSION_ENABLED=true w Railway, aby dopuścić prawdziwą wysyłkę.",
+            token_missing: "Wklej i zapisz token API KSeF sprzedawcy.",
+            token_not_connected: "Token jest zapisany, ale test połączenia nie zakończył się sukcesem.",
+            seller_nip_missing: "Dodaj NIP sprzedawcy w ustawieniach."
+          }
         },
         orders: {
           title: "Zamówienia B2B",
@@ -189,6 +217,10 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             "Tryb testowy jest włączony. Wysyłka utworzy lokalny testowy numer KSeF i nie wykona połączenia z rządowym API.",
           liveModeBanner:
             "Tryb live jest włączony. Aplikacja wyśle fakturę do KSeF tylko jeśli serwer ma włączoną prawdziwą wysyłkę i zapisany token.",
+          liveReadyBanner:
+            "Tryb live jest gotowy. Wysyłka zwaliduje FA(3), połączy się z KSeF i zapisze numer referencyjny.",
+          liveBlockedBanner:
+            "Tryb live nie jest jeszcze gotowy. Sprawdź panel gotowości w ustawieniach KSeF przed wysyłką.",
           ksefApproved: "Faktura zatwierdzona w KSeF: {{number}}",
           openError: "Nie udało się otworzyć XML faktury.",
           validateError: "Nie udało się zwalidować XML faktury."
@@ -323,7 +355,35 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           saveError: "Could not save settings.",
           missingShop: "Shopify did not provide the shop domain. Reopen the app from the Shopify admin Apps menu.",
           connected: "Connected",
-          notConnected: "Not connected"
+          notConnected: "Not connected",
+          safeModeStatus: "Safe test mode",
+          liveReadyStatus: "Live ready",
+          liveNeedsSetupStatus: "Live needs setup",
+          liveDisabledStatus: "Live disabled on server",
+          readinessTitle: "KSeF submission readiness",
+          readinessEnvironment: "Environment",
+          readinessServerLive: "Server live submission",
+          readinessMerchantMode: "Merchant mode",
+          readinessToken: "KSeF token",
+          readinessSellerNip: "Seller NIP",
+          readinessLiveReady: "Live ready",
+          enabled: "Enabled",
+          disabled: "Disabled",
+          safeMode: "Safe test",
+          liveMode: "Live",
+          savedValue: "Saved",
+          missingValue: "Missing",
+          yes: "Yes",
+          no: "No",
+          liveServerDisabledBanner:
+            "Live mode is selected in the shop, but the Railway server does not have KSEF_LIVE_SUBMISSION_ENABLED turned on yet. Invoices will not be submitted to KSeF.",
+          readinessIssues: {
+            test_mode_on: "Turn test mode off only when you are ready to submit real invoices.",
+            server_live_disabled: "Set KSEF_LIVE_SUBMISSION_ENABLED=true in Railway to allow real submission.",
+            token_missing: "Paste and save the merchant's KSeF API token.",
+            token_not_connected: "A token is saved, but the connection test has not passed.",
+            seller_nip_missing: "Add the seller NIP in settings."
+          }
         },
         orders: {
           title: "B2B orders",
@@ -391,6 +451,10 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             "Test mode is on. Submission creates a local test KSeF number and does not call the government API.",
           liveModeBanner:
             "Live mode is on. The app will call KSeF only when the server has live submission enabled and a token is saved.",
+          liveReadyBanner:
+            "Live mode is ready. Submission will validate FA(3), call KSeF, and store the reference number.",
+          liveBlockedBanner:
+            "Live mode is not ready yet. Check the readiness panel in KSeF Settings before submitting.",
           ksefApproved: "Invoice approved in KSeF: {{number}}",
           openError: "Could not open invoice XML.",
           validateError: "Could not validate invoice XML."

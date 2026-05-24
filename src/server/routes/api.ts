@@ -1,6 +1,7 @@
 import { Router } from "express";
 import JSZip from "jszip";
 import { z } from "zod";
+import type { Shop } from "@prisma/client";
 import { loadShop } from "../middleware/shop.js";
 import { encryptSecret } from "../services/crypto.js";
 import {
@@ -144,6 +145,32 @@ function invoiceManifestCsv(invoices: Parameters<typeof invoiceManifestRows>[0])
   ].join("\n");
 }
 
+function buildKsefReadiness(shop: Shop) {
+  const issues: string[] = [];
+
+  if (shop.ksefTestMode) issues.push("test_mode_on");
+  if (!env.KSEF_LIVE_SUBMISSION_ENABLED) issues.push("server_live_disabled");
+  if (!shop.ksefToken) issues.push("token_missing");
+  if (shop.ksefToken && !shop.ksefConnected) issues.push("token_not_connected");
+  if (!shop.sellerNip) issues.push("seller_nip_missing");
+
+  const canLiveSubmit = Boolean(
+    !shop.ksefTestMode &&
+      env.KSEF_LIVE_SUBMISSION_ENABLED &&
+      shop.ksefToken &&
+      shop.ksefConnected &&
+      shop.sellerNip
+  );
+
+  return {
+    environment: env.KSEF_ENVIRONMENT,
+    apiBaseUrl: env.KSEF_API_BASE_URL ?? null,
+    liveSubmissionEnabled: env.KSEF_LIVE_SUBMISSION_ENABLED,
+    canLiveSubmit,
+    issues
+  };
+}
+
 apiRouter.get("/health", (_req, res) => {
   res.json({
     ok: true,
@@ -210,7 +237,8 @@ apiRouter.get("/ksef/settings", loadShop, async (_req, res) => {
     sellerName: shop.sellerName ?? "",
     sellerAddress: shop.sellerAddress ?? "",
     placeOfIssue: shop.placeOfIssue ?? "",
-    ksefTestMode: shop.ksefTestMode
+    ksefTestMode: shop.ksefTestMode,
+    readiness: buildKsefReadiness(shop)
   });
 });
 
@@ -242,11 +270,13 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
     res.json({
       connected: updated.ksefConnected,
       checkedAt: testResult?.checkedAt,
+      tokenTestError: testResult?.error,
       sellerNip: updated.sellerNip ?? "",
       sellerName: updated.sellerName ?? "",
       sellerAddress: updated.sellerAddress ?? "",
       placeOfIssue: updated.placeOfIssue ?? "",
-      ksefTestMode: updated.ksefTestMode
+      ksefTestMode: updated.ksefTestMode,
+      readiness: buildKsefReadiness(updated)
     });
   } catch (error) {
     next(error);

@@ -29,6 +29,22 @@ interface SettingsState {
   ksefTestMode: boolean;
 }
 
+interface KsefReadiness {
+  environment: "TEST" | "DEMO" | "PROD";
+  apiBaseUrl: string | null;
+  liveSubmissionEnabled: boolean;
+  canLiveSubmit: boolean;
+  issues: string[];
+}
+
+type SettingsResponse = SettingsState & {
+  connected: boolean;
+  hasToken: boolean;
+  checkedAt?: string;
+  tokenTestError?: string;
+  readiness?: KsefReadiness;
+};
+
 interface OrderRow {
   id: string;
   name: string;
@@ -141,6 +157,7 @@ export function App() {
   });
   const [saving, setSaving] = useState(false);
   const [connectionState, setConnectionState] = useState<"unknown" | "connected" | "error">("unknown");
+  const [ksefReadiness, setKsefReadiness] = useState<KsefReadiness | null>(null);
   const [settingsMessage, setSettingsMessage] = useState("");
   const [settingsError, setSettingsError] = useState("");
   const [orders, setOrders] = useState<OrderRow[]>([]);
@@ -194,7 +211,7 @@ export function App() {
       return;
     }
 
-    const result = (await response.json()) as SettingsState & { connected: boolean; hasToken: boolean };
+    const result = (await response.json()) as SettingsResponse;
     setSettings({
       sellerNip: result.sellerNip ?? "",
       sellerName: result.sellerName ?? "",
@@ -202,6 +219,7 @@ export function App() {
       placeOfIssue: result.placeOfIssue ?? "",
       ksefTestMode: result.ksefTestMode ?? true
     });
+    setKsefReadiness(result.readiness ?? null);
     setConnectionState(result.connected ? "connected" : "unknown");
   }
 
@@ -332,10 +350,21 @@ export function App() {
         throw new Error(payload.error ?? t("settings.saveError"));
       }
 
-      const result = (await response.json()) as { connected: boolean };
+      const result = (await response.json()) as SettingsResponse;
+      setSettings({
+        sellerNip: result.sellerNip ?? "",
+        sellerName: result.sellerName ?? "",
+        sellerAddress: result.sellerAddress ?? "",
+        placeOfIssue: result.placeOfIssue ?? "",
+        ksefTestMode: result.ksefTestMode ?? true
+      });
+      setKsefReadiness(result.readiness ?? null);
       setConnectionState(result.connected ? "connected" : "unknown");
       setToken("");
       setSettingsMessage(t(result.connected ? "settings.connectedSaved" : "settings.saved"));
+      if (result.tokenTestError) {
+        setSettingsError(result.tokenTestError);
+      }
     } catch (error) {
       setConnectionState("error");
       setSettingsError(error instanceof Error ? error.message : t("settings.saveError"));
@@ -615,6 +644,54 @@ export function App() {
     ["unlimited", t("plans.unlimited"), "$39.99", t("billing.unlimitedInvoices")]
   ];
   const submissionModeLabel = settings.ksefTestMode ? t("invoices.testMode") : t("invoices.liveMode");
+  const ksefStatusLabel = settings.ksefTestMode
+    ? t("settings.safeModeStatus")
+    : ksefReadiness?.canLiveSubmit
+      ? t("settings.liveReadyStatus")
+      : ksefReadiness?.liveSubmissionEnabled
+        ? t("settings.liveNeedsSetupStatus")
+        : t("settings.liveDisabledStatus");
+  const ksefStatusDotClass = ksefReadiness?.canLiveSubmit
+    ? "status-dot connected"
+    : !settings.ksefTestMode && !ksefReadiness?.liveSubmissionEnabled
+      ? "status-dot danger"
+      : "status-dot";
+  const ksefBadgeTone: "success" | "attention" = ksefReadiness?.canLiveSubmit ? "success" : "attention";
+  const liveSubmissionBlocked = !settings.ksefTestMode && !ksefReadiness?.canLiveSubmit;
+  const readinessItems = ksefReadiness
+    ? [
+        {
+          label: t("settings.readinessEnvironment"),
+          value: ksefReadiness.environment,
+          ok: true
+        },
+        {
+          label: t("settings.readinessServerLive"),
+          value: ksefReadiness.liveSubmissionEnabled ? t("settings.enabled") : t("settings.disabled"),
+          ok: ksefReadiness.liveSubmissionEnabled
+        },
+        {
+          label: t("settings.readinessMerchantMode"),
+          value: settings.ksefTestMode ? t("settings.safeMode") : t("settings.liveMode"),
+          ok: !settings.ksefTestMode
+        },
+        {
+          label: t("settings.readinessToken"),
+          value: connectionState === "connected" ? t("settings.connected") : t("settings.notConnected"),
+          ok: connectionState === "connected"
+        },
+        {
+          label: t("settings.readinessSellerNip"),
+          value: settings.sellerNip ? t("settings.savedValue") : t("settings.missingValue"),
+          ok: Boolean(settings.sellerNip)
+        },
+        {
+          label: t("settings.readinessLiveReady"),
+          value: ksefReadiness.canLiveSubmit ? t("settings.yes") : t("settings.no"),
+          ok: ksefReadiness.canLiveSubmit
+        }
+      ]
+    : [];
 
   return (
     <>
@@ -634,8 +711,8 @@ export function App() {
                   </Text>
                 </div>
                 <div className="hero-status">
-                  <span className={connectionState === "connected" ? "status-dot connected" : "status-dot"} />
-                  {connectionState === "connected" ? t("settings.connected") : t("settings.notConnected")}
+                  <span className={ksefStatusDotClass} />
+                  {ksefStatusLabel}
                 </div>
                 <div className="language-switcher">
                   <Select
@@ -746,9 +823,7 @@ export function App() {
                               : t("home.description")}
                       </Text>
                     </BlockStack>
-                    <Badge tone={connectionState === "connected" ? "success" : "attention"}>
-                      {connectionState === "connected" ? t("settings.connected") : t("settings.notConnected")}
-                    </Badge>
+                    <Badge tone={ksefBadgeTone}>{ksefStatusLabel}</Badge>
                   </InlineStack>
 
                   {view === "settings" ? (
@@ -760,6 +835,38 @@ export function App() {
                         onChange={(ksefTestMode) => setSettings((current) => ({ ...current, ksefTestMode }))}
                         helpText={t("settings.testModeHelp")}
                       />
+                      {!settings.ksefTestMode && !ksefReadiness?.liveSubmissionEnabled ? (
+                        <Banner tone="warning">{t("settings.liveServerDisabledBanner")}</Banner>
+                      ) : null}
+                      {ksefReadiness ? (
+                        <div className="readiness-card">
+                          <BlockStack gap="300">
+                            <InlineStack align="space-between" blockAlign="center">
+                              <Text as="h3" variant="headingMd">
+                                {t("settings.readinessTitle")}
+                              </Text>
+                              <Badge tone={ksefBadgeTone}>{ksefStatusLabel}</Badge>
+                            </InlineStack>
+                            <div className="readiness-grid">
+                              {readinessItems.map((item) => (
+                                <div className={item.ok ? "readiness-item ok" : "readiness-item warn"} key={item.label}>
+                                  <span>{item.label}</span>
+                                  <strong>{item.value}</strong>
+                                </div>
+                              ))}
+                            </div>
+                            {ksefReadiness.issues.length ? (
+                              <div className="readiness-issues">
+                                {ksefReadiness.issues.map((issue) => (
+                                  <Text as="p" tone="subdued" key={issue}>
+                                    {t(`settings.readinessIssues.${issue}`, { defaultValue: issue })}
+                                  </Text>
+                                ))}
+                              </div>
+                            ) : null}
+                          </BlockStack>
+                        </div>
+                      ) : null}
                       {settingsMessage ? <Banner tone="success">{settingsMessage}</Banner> : null}
                       {settingsError ? (
                         <Banner tone="critical">
@@ -970,8 +1077,12 @@ export function App() {
                   {view === "invoices" ? (
                     <BlockStack gap="400">
                       <Banner tone="info">{t("invoices.safeTest")}</Banner>
-                      <Banner tone={settings.ksefTestMode ? "info" : "warning"}>
-                        {settings.ksefTestMode ? t("invoices.testModeBanner") : t("invoices.liveModeBanner")}
+                      <Banner tone={settings.ksefTestMode || ksefReadiness?.canLiveSubmit ? "info" : "warning"}>
+                        {settings.ksefTestMode
+                          ? t("invoices.testModeBanner")
+                          : ksefReadiness?.canLiveSubmit
+                            ? t("invoices.liveReadyBanner")
+                            : t("invoices.liveBlockedBanner")}
                       </Banner>
                       {invoiceError ? <Banner tone="critical">{invoiceError}</Banner> : null}
                       {xsdValidation ? (
@@ -1100,7 +1211,7 @@ export function App() {
                                 </Button>
                                 <Button
                                   variant="primary"
-                                  disabled={Boolean(invoice.ksefNumber)}
+                                  disabled={Boolean(invoice.ksefNumber) || liveSubmissionBlocked}
                                   loading={submittingInvoiceId === invoice.id}
                                   onClick={() => submitInvoice(invoice)}
                                 >
