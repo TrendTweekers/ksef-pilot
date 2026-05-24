@@ -69,7 +69,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           orders: "Pierwszy szkic faktury",
           export: "Eksport dla księgowości",
           ksef: "Token KSeF",
-          xsd: "Walidacja schemy FA(3)"
+          xsd: "Walidacja schemy FA(3)",
+          test: "Bezpieczny test KSeF"
         },
         setupDetails: {
           seller: {
@@ -95,6 +96,10 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           xsd: {
             done: "FA(3) XML przechodzi walidację XSD.",
             open: "Waliduj każdy szkic faktury oficjalną schemą FA(3)."
+          },
+          test: {
+            done: "Pelny test przeplywu KSeF zostal wykonany bez wysylki do rzadowego API.",
+            open: "Wyslij jeden zwalidowany szkic w trybie testowym. Aplikacja utworzy lokalny numer testowy i nie wysle nic do KSeF."
           }
         },
         settings: {
@@ -280,6 +285,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             "Tryb live jest gotowy. Wysyłka zwaliduje FA(3), połączy się z KSeF i zapisze numer referencyjny.",
           liveBlockedBanner:
             "Tryb live nie jest jeszcze gotowy. Sprawdź panel gotowości w ustawieniach KSeF przed wysyłką.",
+          testRunComplete: "Bezpieczny test zakonczony: szkic zostal zwalidowany i przeszedl testowa wysylke bez polaczenia z KSeF.",
+          testRunNext: "Nastepny krok: zwaliduj szkic FA(3), a potem wyslij go w trybie testowym. To nie wykona polaczenia z KSeF.",
           ksefApproved: "Faktura zatwierdzona w KSeF: {{number}}",
           openError: "Nie udało się otworzyć XML faktury.",
           validateError: "Nie udało się zwalidować XML faktury.",
@@ -421,7 +428,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           orders: "First draft invoice",
           export: "Accountant export",
           ksef: "KSeF token",
-          xsd: "FA(3) schema validation"
+          xsd: "FA(3) schema validation",
+          test: "Safe KSeF test run"
         },
         setupDetails: {
           seller: {
@@ -447,6 +455,10 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           xsd: {
             done: "FA(3) XML passes XSD validation.",
             open: "Validate every draft invoice against the official FA(3) schema."
+          },
+          test: {
+            done: "The full KSeF workflow was rehearsed without calling the government API.",
+            open: "Submit one validated draft while test mode is on. The app creates a local test number and sends nothing to KSeF."
           }
         },
         settings: {
@@ -631,6 +643,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             "Live mode is ready. Submission will validate FA(3), call KSeF, and store the reference number.",
           liveBlockedBanner:
             "Live mode is not ready yet. Check the readiness panel in KSeF Settings before submitting.",
+          testRunComplete: "Safe test complete: a draft was validated and submitted through test mode without calling KSeF.",
+          testRunNext: "Next step: validate one FA(3) draft, then submit it while test mode is on. This does not call KSeF.",
           ksefApproved: "Invoice approved in KSeF: {{number}}",
           openError: "Could not open invoice XML.",
           validateError: "Could not validate invoice XML.",

@@ -909,6 +909,7 @@ export function App() {
   const liveSubmissionBlocked = !settings.ksefTestMode && !ksefReadiness?.canLiveSubmit;
   const liveSettingsSaveBlocked = !settings.ksefTestMode && !liveSubmissionAcknowledged;
   const validationRequiredCount = invoices.filter((invoice) => invoice.fa3ValidationStatus !== "valid" && !invoice.ksefNumber).length;
+  const testRunComplete = Boolean(setupStatus?.items.some((item) => item.id === "test" && item.done));
   const readinessItems = ksefReadiness
     ? [
         {
@@ -1462,6 +1463,9 @@ export function App() {
                           : ksefReadiness?.canLiveSubmit
                             ? t("invoices.liveReadyBanner")
                             : t("invoices.liveBlockedBanner")}
+                      </Banner>
+                      <Banner tone={testRunComplete ? "success" : "info"}>
+                        {testRunComplete ? t("invoices.testRunComplete") : t("invoices.testRunNext")}
                       </Banner>
                       {invoiceMessage ? <Banner tone="success">{invoiceMessage}</Banner> : null}
                       {invoiceError ? <Banner tone="critical">{invoiceError}</Banner> : null}

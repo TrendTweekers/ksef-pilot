@@ -703,10 +703,18 @@ apiRouter.get("/review/status", loadShop, async (_req, res, next) => {
 apiRouter.get("/setup/status", loadShop, async (_req, res, next) => {
   try {
     const shop = res.locals.shop!;
-    const [invoiceCount, exportedCount, validatedCount] = await Promise.all([
+    const [invoiceCount, exportedCount, validatedCount, testSubmissionCount] = await Promise.all([
       prisma.ksefInvoice.count({ where: { shopId: shop.id } }),
-      prisma.ksefInvoice.count({ where: { shopId: shop.id, status: { in: ["exported", "submitted"] } } }),
-      prisma.ksefInvoice.count({ where: { shopId: shop.id, fa3ValidationStatus: "valid" } })
+      prisma.ksefInvoice.count({ where: { shopId: shop.id, status: "exported" } }),
+      prisma.ksefInvoice.count({ where: { shopId: shop.id, fa3ValidationStatus: "valid" } }),
+      prisma.ksefSubmission.count({
+        where: {
+          shopId: shop.id,
+          mode: "test",
+          status: "submitted",
+          ksefNumber: { not: null }
+        }
+      })
     ]);
     const billing = await getBillingSummary(shop);
 
@@ -748,6 +756,14 @@ apiRouter.get("/setup/status", loadShop, async (_req, res, next) => {
         detail: validatedCount > 0
           ? `${validatedCount} invoice draft passed official FA(3) XSD validation.`
           : "Validate each draft invoice against the official CIRFMF FA(3) XSD before submission."
+      },
+      {
+        id: "test",
+        label: "Safe KSeF test run",
+        done: testSubmissionCount > 0,
+        detail: testSubmissionCount > 0
+          ? `${testSubmissionCount} invoice completed the local test-mode KSeF workflow.`
+          : "Submit one validated draft while test mode is on. This creates a local test reference and sends nothing to KSeF."
       }
     ];
 
