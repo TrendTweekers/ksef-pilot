@@ -98,6 +98,9 @@ model KsefInvoice {
   retryCount    Int           @default(0)
   nextRetryAt   DateTime?
   lastError     String?
+  fa3ValidatedAt DateTime?
+  fa3ValidationStatus String?
+  fa3ValidationError String?
   upoXml        String?
   upoStatus     String?
   upoFetchedAt  DateTime?
@@ -109,6 +112,7 @@ model KsefInvoice {
 
   @@index([shopId, orderId])
   @@index([status, nextRetryAt])
+  @@index([shopId, fa3ValidationStatus])
 }
 
 model KsefSubmission {

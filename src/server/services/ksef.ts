@@ -381,15 +381,38 @@ export async function submitInvoiceToKsef(shop: Shop, invoiceId: string) {
     return { invoice, submission: existing, reused: true };
   }
 
+  if (invoice.fa3ValidationStatus !== "valid") {
+    throw new Error("Validate FA(3) XML before submitting this invoice to KSeF.");
+  }
+
   const validation = await validateFa3XmlAgainstOfficialXsd(invoice.fa3Xml);
   if (!validation.valid) {
+    const validationError = `FA(3) XML failed XSD validation with ${validation.issueCount} issue(s).`;
+    await prisma.ksefInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        fa3ValidatedAt: new Date(),
+        fa3ValidationStatus: "invalid",
+        fa3ValidationError: validation.issues.slice(0, 5).map((issue) => `${issue.code}: ${issue.message}`).join("\n"),
+        lastError: validationError
+      }
+    });
     const submission = await createFailedSubmission(
       shop,
       invoice,
-      `FA(3) XML failed XSD validation with ${validation.issueCount} issue(s).`
+      validationError
     );
     return { invoice, submission, reused: false };
   }
+
+  await prisma.ksefInvoice.update({
+    where: { id: invoice.id },
+    data: {
+      fa3ValidatedAt: new Date(),
+      fa3ValidationStatus: "valid",
+      fa3ValidationError: null
+    }
+  });
 
   const submission = shop.ksefTestMode
     ? await submitInvoiceInTestMode(shop, invoice)

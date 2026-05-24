@@ -601,9 +601,10 @@ apiRouter.get("/review/status", loadShop, async (_req, res, next) => {
 apiRouter.get("/setup/status", loadShop, async (_req, res, next) => {
   try {
     const shop = res.locals.shop!;
-    const [invoiceCount, exportedCount] = await Promise.all([
+    const [invoiceCount, exportedCount, validatedCount] = await Promise.all([
       prisma.ksefInvoice.count({ where: { shopId: shop.id } }),
-      prisma.ksefInvoice.count({ where: { shopId: shop.id, status: { in: ["exported", "submitted"] } } })
+      prisma.ksefInvoice.count({ where: { shopId: shop.id, status: { in: ["exported", "submitted"] } } }),
+      prisma.ksefInvoice.count({ where: { shopId: shop.id, fa3ValidationStatus: "valid" } })
     ]);
     const billing = await getBillingSummary(shop);
 
@@ -641,8 +642,10 @@ apiRouter.get("/setup/status", loadShop, async (_req, res, next) => {
       {
         id: "xsd",
         label: "FA(3) schema validation",
-        done: false,
-        detail: "Validate each draft invoice against the official CIRFMF FA(3) XSD before submission."
+        done: validatedCount > 0,
+        detail: validatedCount > 0
+          ? `${validatedCount} invoice draft passed official FA(3) XSD validation.`
+          : "Validate each draft invoice against the official CIRFMF FA(3) XSD before submission."
       }
     ];
 
@@ -710,6 +713,9 @@ apiRouter.get("/invoices", loadShop, async (req, res, next) => {
           status: invoice.status,
           correctionOf: invoice.correctionOf,
           lastError: invoice.lastError,
+          fa3ValidatedAt: invoice.fa3ValidatedAt,
+          fa3ValidationStatus: invoice.fa3ValidationStatus,
+          fa3ValidationError: invoice.fa3ValidationError,
           ksefNumber: invoice.ksefNumber,
           upoStatus: invoice.upoStatus,
           upoFetchedAt: invoice.upoFetchedAt,
@@ -830,9 +836,25 @@ apiRouter.get("/invoices/:invoiceId/validate", loadShop, async (req, res, next) 
     }
 
     const validation = await validateFa3XmlAgainstOfficialXsd(invoice.fa3Xml);
+    const validationError = validation.valid
+      ? null
+      : validation.issues.slice(0, 5).map((issue) => `${issue.code}: ${issue.message}`).join("\n");
+    const updated = await prisma.ksefInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        fa3ValidatedAt: new Date(),
+        fa3ValidationStatus: validation.valid ? "valid" : "invalid",
+        fa3ValidationError: validationError,
+        lastError: validation.valid ? null : validationError
+      }
+    });
+
     res.json({
       invoiceId: invoice.id,
       orderName: invoice.orderName,
+      fa3ValidatedAt: updated.fa3ValidatedAt,
+      fa3ValidationStatus: updated.fa3ValidationStatus,
+      fa3ValidationError: updated.fa3ValidationError,
       validation
     });
   } catch (error) {
@@ -1034,6 +1056,9 @@ apiRouter.get("/invoices/:invoiceId", loadShop, async (req, res, next) => {
         status: invoice.status,
         correctionOf: invoice.correctionOf,
         lastError: invoice.lastError,
+        fa3ValidatedAt: invoice.fa3ValidatedAt,
+        fa3ValidationStatus: invoice.fa3ValidationStatus,
+        fa3ValidationError: invoice.fa3ValidationError,
         ksefNumber: invoice.ksefNumber,
         upoStatus: invoice.upoStatus,
         upoFetchedAt: invoice.upoFetchedAt,

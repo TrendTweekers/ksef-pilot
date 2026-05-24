@@ -70,6 +70,9 @@ interface InvoiceRow {
   status: string;
   correctionOf?: string | null;
   lastError?: string | null;
+  fa3ValidatedAt?: string | null;
+  fa3ValidationStatus?: string | null;
+  fa3ValidationError?: string | null;
   ksefNumber?: string;
   upoStatus?: string | null;
   upoFetchedAt?: string | null;
@@ -170,6 +173,9 @@ interface SetupStatus {
 interface XsdValidationResult {
   invoiceId: string;
   orderName: string;
+  fa3ValidatedAt?: string | null;
+  fa3ValidationStatus?: string | null;
+  fa3ValidationError?: string | null;
   validation: {
     valid: boolean;
     enforced: boolean;
@@ -734,7 +740,22 @@ export function App() {
         throw new Error(payload.error ?? t("invoices.validateError"));
       }
 
-      setXsdValidation((await response.json()) as XsdValidationResult);
+      const result = (await response.json()) as XsdValidationResult;
+      setXsdValidation(result);
+      setInvoices((current) =>
+        current.map((item) =>
+          item.id === result.invoiceId
+            ? {
+                ...item,
+                fa3ValidatedAt: result.fa3ValidatedAt,
+                fa3ValidationStatus: result.fa3ValidationStatus,
+                fa3ValidationError: result.fa3ValidationError,
+                lastError: result.fa3ValidationError ?? item.lastError
+              }
+            : item
+        )
+      );
+      void loadSetupStatus();
     } catch (error) {
       setInvoiceError(error instanceof Error ? error.message : t("invoices.validateError"));
     } finally {
@@ -1318,6 +1339,13 @@ export function App() {
                                   <Badge tone={invoice.status === "draft" ? "info" : invoice.status === "exported" || invoice.status === "correction_needed" ? "attention" : "success"}>
                                     {invoice.status}
                                   </Badge>
+                                  <Badge tone={invoice.fa3ValidationStatus === "valid" ? "success" : invoice.fa3ValidationStatus === "invalid" ? "critical" : "attention"}>
+                                    {invoice.fa3ValidationStatus === "valid"
+                                      ? t("invoices.validationValid")
+                                      : invoice.fa3ValidationStatus === "invalid"
+                                        ? t("invoices.validationInvalid")
+                                        : t("invoices.validationRequired")}
+                                  </Badge>
                                   {invoice.submission ? <Badge tone="info">{invoice.submission.mode}</Badge> : null}
                                   {invoice.correctionOf ? <Badge tone="attention">{t("invoices.correction")}</Badge> : null}
                                 </InlineStack>
@@ -1344,12 +1372,22 @@ export function App() {
                                     {t("invoices.upoStatus", { status: invoice.upoStatus })}
                                   </Text>
                                 ) : null}
+                                {invoice.fa3ValidatedAt && invoice.fa3ValidationStatus === "valid" ? (
+                                  <Text as="p" tone="subdued">
+                                    {t("invoices.validatedAt", { date: new Date(invoice.fa3ValidatedAt).toLocaleString(locale) })}
+                                  </Text>
+                                ) : null}
+                                {invoice.fa3ValidationError ? (
+                                  <Text as="p" tone="critical">
+                                    {invoice.fa3ValidationError}
+                                  </Text>
+                                ) : null}
                                 {invoice.submission?.lastError ? (
                                   <Text as="p" tone="critical">
                                     {invoice.submission.lastError}
                                   </Text>
                                 ) : null}
-                                {invoice.lastError && !invoice.submission?.lastError ? (
+                                {invoice.lastError && !invoice.submission?.lastError && invoice.lastError !== invoice.fa3ValidationError ? (
                                   <Text as="p" tone={invoice.status === "correction_needed" ? "subdued" : "critical"}>
                                     {invoice.lastError}
                                   </Text>
@@ -1367,7 +1405,11 @@ export function App() {
                                 </Button>
                                 <Button
                                   variant="primary"
-                                  disabled={Boolean(invoice.ksefNumber) || liveSubmissionBlocked}
+                                  disabled={
+                                    Boolean(invoice.ksefNumber) ||
+                                    liveSubmissionBlocked ||
+                                    invoice.fa3ValidationStatus !== "valid"
+                                  }
                                   loading={submittingInvoiceId === invoice.id}
                                   onClick={() => submitInvoice(invoice)}
                                 >
