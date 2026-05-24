@@ -12,7 +12,7 @@ KSeF Pilot is built for everyday Shopify sellers, not accounting teams. The merc
 - Frontend: React + Shopify Polaris + App Bridge-ready embedded shell
 - Database: PostgreSQL + Prisma ORM
 - Hosting: Railway
-- i18n: react-i18next, English default and Polish ready
+- i18n: react-i18next, Polish default with English switch
 
 ## Phase 1 Scope
 
