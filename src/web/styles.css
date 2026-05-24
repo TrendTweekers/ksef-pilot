@@ -366,9 +366,26 @@ body {
     #fffdfa;
 }
 
+.launch-readiness {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--ff-border);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(218, 27, 45, 0.06), transparent 34%),
+    #fffdfa;
+}
+
 .automation-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.launch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -379,6 +396,35 @@ body {
   border: 1px solid var(--ff-border);
   border-radius: 8px;
   background: var(--ff-card);
+}
+
+.launch-item {
+  display: grid;
+  gap: 6px;
+  min-height: 104px;
+  padding: 12px;
+  border: 1px solid var(--ff-border);
+  border-left: 3px solid #d89b00;
+  border-radius: 8px;
+  background: var(--ff-card);
+}
+
+.launch-item.ok {
+  border-left-color: var(--ff-success);
+}
+
+.launch-item.warn {
+  border-left-color: #d89b00;
+}
+
+.launch-item span {
+  width: max-content;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ff-paper-dark);
+  color: var(--ff-ink-soft);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .automation-item span {
@@ -503,6 +549,7 @@ body {
   .invoice-flow,
   .queue-summary,
   .automation-grid,
+  .launch-grid,
   .plan-grid,
   .setup-grid,
   .order-fields {

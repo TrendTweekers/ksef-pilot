@@ -8,12 +8,20 @@ interface WebhookCreateResponse {
   };
 }
 
-type CoreWebhookTopic =
+export type CoreWebhookTopic =
   | "APP_UNINSTALLED"
   | "APP_SUBSCRIPTIONS_UPDATE"
   | "REFUNDS_CREATE"
   | "ORDERS_EDITED"
   | "ORDERS_UPDATED";
+
+export const coreWebhookTopics: CoreWebhookTopic[] = [
+  "APP_UNINSTALLED",
+  "APP_SUBSCRIPTIONS_UPDATE",
+  "REFUNDS_CREATE",
+  "ORDERS_EDITED",
+  "ORDERS_UPDATED"
+];
 
 async function registerWebhook(shop: Shop, topic: CoreWebhookTopic) {
   const data = await shopifyGraphql<WebhookCreateResponse>(
@@ -40,19 +48,56 @@ async function registerWebhook(shop: Shop, topic: CoreWebhookTopic) {
 }
 
 export async function registerCoreWebhooks(shop: Shop) {
-  const topics: CoreWebhookTopic[] = [
-    "APP_UNINSTALLED",
-    "APP_SUBSCRIPTIONS_UPDATE",
-    "REFUNDS_CREATE",
-    "ORDERS_EDITED",
-    "ORDERS_UPDATED"
-  ];
-
-  for (const topic of topics) {
+  for (const topic of coreWebhookTopics) {
     try {
       await registerWebhook(shop, topic);
     } catch (error) {
       console.warn(`Could not register ${topic} webhook for ${shop.domain}`, error);
     }
   }
+}
+
+interface WebhookListResponse {
+  webhookSubscriptions: {
+    nodes: Array<{
+      id: string;
+      topic: CoreWebhookTopic | string;
+      endpoint: {
+        callbackUrl?: string | null;
+      } | null;
+    }>;
+  };
+}
+
+export async function listCoreWebhookStatus(shop: Shop) {
+  const data = await shopifyGraphql<WebhookListResponse>(
+    shop.domain,
+    shop.accessToken,
+    `query KsefPilotWebhookStatus {
+      webhookSubscriptions(first: 100) {
+        nodes {
+          id
+          topic
+          endpoint {
+            ... on WebhookHttpEndpoint {
+              callbackUrl
+            }
+          }
+        }
+      }
+    }`
+  );
+  const expectedCallbackUrl = `${env.APP_URL}/webhooks/shopify`;
+
+  return coreWebhookTopics.map((topic) => {
+    const match = data.webhookSubscriptions.nodes.find(
+      (node) => node.topic === topic && node.endpoint?.callbackUrl === expectedCallbackUrl
+    );
+
+    return {
+      topic,
+      installed: Boolean(match),
+      callbackUrl: match?.endpoint?.callbackUrl ?? null
+    };
+  });
 }

@@ -311,6 +311,11 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           automationTitle: "Zdrowie automatyzacji",
           automationDescription:
             "Railway powinien cyklicznie wywoływać retry i odświeżanie statusów, aby faktury same przechodziły przez KSeF.",
+          launchTitle: "Gotowosc uruchomienia",
+          launchDescription: "Wewnetrzna lista kontrolna: Railway, webhooki Shopify, billing, worker, alerty i bezpieczny test.",
+          launchReady: "Gotowe",
+          launchNeedsWork: "Do poprawy",
+          launchChecked: "Sprawdzono: {{date}}",
           workerSecured: "Worker zabezpieczony",
           workerSecretMissing: "Brak sekretu workera",
           workerAutorun: "Autorun workera",
@@ -669,6 +674,11 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           automationTitle: "Automation health",
           automationDescription:
             "Railway should call retry and status refresh jobs on a schedule so invoices keep moving through KSeF automatically.",
+          launchTitle: "Launch readiness",
+          launchDescription: "Internal checklist: Railway, Shopify webhooks, billing, worker automation, alerts, and the safe test run.",
+          launchReady: "Ready",
+          launchNeedsWork: "Needs work",
+          launchChecked: "Checked: {{date}}",
           workerSecured: "Worker secured",
           workerSecretMissing: "Worker secret missing",
           workerAutorun: "Worker autorun",

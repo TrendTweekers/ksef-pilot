@@ -20,6 +20,7 @@ import { fetchShopifyOrders, generateCorrectionForInvoice, generateDraftInvoiceF
 import { buildInvoicePdf } from "../services/pdf.js";
 import { notifyTelegram } from "../services/telegram.js";
 import { getKsefWorkerStatus, runKsefWorkerOnce } from "../services/ksefWorker.js";
+import { coreWebhookTopics, listCoreWebhookStatus } from "../services/webhookSubscriptions.js";
 
 export const apiRouter = Router();
 
@@ -447,6 +448,133 @@ apiRouter.get("/ksef/automation-health", loadShop, async (_req, res, next) => {
       pendingStatusRefreshes,
       failedSubmissions,
       checkedAt: now.toISOString()
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.get("/owner/readiness", loadShop, async (_req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const now = new Date();
+    const billing = await getBillingSummary(shop);
+    const worker = getKsefWorkerStatus();
+    const [testSubmissionCount, validatedCount, webhookStatusResult] = await Promise.allSettled([
+      prisma.ksefSubmission.count({
+        where: {
+          shopId: shop.id,
+          mode: "test",
+          status: "submitted",
+          ksefNumber: { not: null }
+        }
+      }),
+      prisma.ksefInvoice.count({
+        where: {
+          shopId: shop.id,
+          fa3ValidationStatus: "valid"
+        }
+      }),
+      listCoreWebhookStatus(shop)
+    ]);
+    const webhooks =
+      webhookStatusResult.status === "fulfilled"
+        ? webhookStatusResult.value
+        : coreWebhookTopics.map((topic) => ({ topic, installed: false, callbackUrl: null }));
+    const webhookError = webhookStatusResult.status === "rejected"
+      ? webhookStatusResult.reason instanceof Error
+        ? webhookStatusResult.reason.message
+        : String(webhookStatusResult.reason)
+      : null;
+    const requiredScopes = ["read_orders", "read_customers", "read_products"];
+    const configuredScopes = env.SHOPIFY_SCOPES.split(",").map((scope) => scope.trim()).filter(Boolean);
+    const missingScopes = requiredScopes.filter((scope) => !configuredScopes.includes(scope));
+    const safeTestDone = testSubmissionCount.status === "fulfilled" && testSubmissionCount.value > 0;
+    const validatedDrafts = validatedCount.status === "fulfilled" ? validatedCount.value : 0;
+    const webhookReady = webhooks.every((webhook) => webhook.installed);
+    const workerReady = env.KSEF_WORKER_AUTORUN || Boolean(env.KSEF_WORKER_SECRET);
+    const pricingReady = Boolean(env.SHOPIFY_APP_HANDLE || env.SHOPIFY_MANAGED_PRICING_URL_TEMPLATE);
+
+    const items = [
+      {
+        id: "app_url",
+        label: "Railway public URL",
+        ok: env.APP_URL.startsWith("https://"),
+        detail: env.APP_URL
+      },
+      {
+        id: "webhooks",
+        label: "Shopify webhooks",
+        ok: webhookReady,
+        detail: webhookError
+          ? `Could not verify webhooks: ${webhookError}`
+          : `${webhooks.filter((webhook) => webhook.installed).length}/${webhooks.length} installed.`
+      },
+      {
+        id: "billing",
+        label: "Managed Pricing",
+        ok: pricingReady,
+        detail: `${billing.planName} active limit view. URL ${billing.managedPricingUrl}`
+      },
+      {
+        id: "worker",
+        label: "KSeF worker",
+        ok: workerReady,
+        detail: env.KSEF_WORKER_AUTORUN
+          ? `Autorun every ${worker.intervalSeconds}s.`
+          : env.KSEF_WORKER_SECRET
+            ? "Worker endpoints secured for Railway cron."
+            : "Set KSEF_WORKER_SECRET or enable KSEF_WORKER_AUTORUN."
+      },
+      {
+        id: "safe_test",
+        label: "Safe test run",
+        ok: safeTestDone,
+        detail: safeTestDone
+          ? "At least one invoice completed local test-mode submission."
+          : "Create, validate, and submit one draft while test mode is on."
+      },
+      {
+        id: "schema",
+        label: "FA(3) validation",
+        ok: validatedDrafts > 0,
+        detail: `${validatedDrafts} validated draft invoice(s).`
+      },
+      {
+        id: "live_gate",
+        label: "Live KSeF gate",
+        ok: env.KSEF_LIVE_SUBMISSION_ENABLED ? Boolean(shop.ksefConnected && !shop.ksefTestMode) : true,
+        detail: env.KSEF_LIVE_SUBMISSION_ENABLED
+          ? "Server live calls enabled. Merchant token and mode decide submission."
+          : "Server live calls disabled, so real KSeF submission is blocked."
+      },
+      {
+        id: "scopes",
+        label: "Shopify scopes",
+        ok: missingScopes.length === 0,
+        detail: missingScopes.length ? `Missing: ${missingScopes.join(", ")}` : configuredScopes.join(", ")
+      },
+      {
+        id: "telegram",
+        label: "Telegram alerts",
+        ok: Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID),
+        detail: env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID
+          ? "Install, billing, worker, and KSeF alerts can be sent."
+          : "Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID for owner alerts."
+      },
+      {
+        id: "review",
+        label: "Review URL",
+        ok: Boolean(env.SHOPIFY_REVIEW_URL),
+        detail: env.SHOPIFY_REVIEW_URL ?? "Set SHOPIFY_REVIEW_URL before asking merchants for reviews."
+      }
+    ];
+
+    res.json({
+      complete: items.every((item) => item.ok),
+      checkedAt: now.toISOString(),
+      items,
+      webhooks
     });
   } catch (error) {
     next(error);

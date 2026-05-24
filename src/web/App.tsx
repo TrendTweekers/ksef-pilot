@@ -155,6 +155,22 @@ interface AutomationHealth {
   };
 }
 
+interface OwnerReadiness {
+  complete: boolean;
+  checkedAt: string;
+  items: Array<{
+    id: string;
+    label: string;
+    ok: boolean;
+    detail: string;
+  }>;
+  webhooks: Array<{
+    topic: string;
+    installed: boolean;
+    callbackUrl: string | null;
+  }>;
+}
+
 interface BillingSummary {
   plan: string;
   storedPlan: string;
@@ -264,6 +280,7 @@ export function App() {
   const [queueError, setQueueError] = useState("");
   const [queueActionId, setQueueActionId] = useState<string | null>(null);
   const [automationHealth, setAutomationHealth] = useState<AutomationHealth | null>(null);
+  const [ownerReadiness, setOwnerReadiness] = useState<OwnerReadiness | null>(null);
 
   function apiPath(path: string) {
     const separator = path.includes("?") ? "&" : "?";
@@ -388,6 +405,15 @@ export function App() {
     }
   }
 
+  async function loadOwnerReadiness() {
+    if (!shop) return;
+
+    const response = await fetch(apiPath("/api/owner/readiness"));
+    if (response.ok) {
+      setOwnerReadiness((await response.json()) as OwnerReadiness);
+    }
+  }
+
   async function loadBilling() {
     if (!shop) return;
 
@@ -448,6 +474,7 @@ export function App() {
     if (view === "queue") {
       void loadQueue();
       void loadAutomationHealth();
+      void loadOwnerReadiness();
     }
   }, [shop, queueStatus, view]);
 
@@ -1759,6 +1786,39 @@ export function App() {
                               ) : null}
                             </div>
                           ) : null}
+                        </div>
+                      ) : null}
+                      {ownerReadiness ? (
+                        <div className="launch-readiness">
+                          <InlineStack align="space-between" blockAlign="center" gap="300">
+                            <BlockStack gap="100">
+                              <Text as="h3" variant="headingMd">
+                                {t("queue.launchTitle")}
+                              </Text>
+                              <Text as="p" tone="subdued">
+                                {t("queue.launchDescription")}
+                              </Text>
+                            </BlockStack>
+                            <Badge tone={ownerReadiness.complete ? "success" : "attention"}>
+                              {ownerReadiness.complete ? t("queue.launchReady") : t("queue.launchNeedsWork")}
+                            </Badge>
+                          </InlineStack>
+                          <div className="launch-grid">
+                            {ownerReadiness.items.map((item) => (
+                              <div className={item.ok ? "launch-item ok" : "launch-item warn"} key={item.id}>
+                                <span>{item.ok ? t("common.done") : t("common.open")}</span>
+                                <Text as="h4" variant="headingSm">
+                                  {item.label}
+                                </Text>
+                                <Text as="p" tone="subdued">
+                                  {item.detail}
+                                </Text>
+                              </div>
+                            ))}
+                          </div>
+                          <Text as="p" tone="subdued">
+                            {t("queue.launchChecked", { date: new Date(ownerReadiness.checkedAt).toLocaleString(locale) })}
+                          </Text>
                         </div>
                       ) : null}
                       {queueError ? <Banner tone="critical">{queueError}</Banner> : null}
