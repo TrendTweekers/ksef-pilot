@@ -127,6 +127,18 @@ interface QueueResponse {
   submissions: QueueSubmission[];
 }
 
+interface AutomationHealth {
+  workerSecretConfigured: boolean;
+  productionRequiresWorkerSecret: boolean;
+  liveSubmissionEnabled: boolean;
+  retryEndpoint: string;
+  statusRefreshEndpoint: string;
+  dueRetries: number;
+  pendingStatusRefreshes: number;
+  failedSubmissions: number;
+  checkedAt: string;
+}
+
 interface BillingSummary {
   plan: string;
   planName: string;
@@ -226,6 +238,7 @@ export function App() {
   const [queueLoading, setQueueLoading] = useState(false);
   const [queueError, setQueueError] = useState("");
   const [queueActionId, setQueueActionId] = useState<string | null>(null);
+  const [automationHealth, setAutomationHealth] = useState<AutomationHealth | null>(null);
 
   function apiPath(path: string) {
     const separator = path.includes("?") ? "&" : "?";
@@ -335,6 +348,15 @@ export function App() {
     }
   }
 
+  async function loadAutomationHealth() {
+    if (!shop) return;
+
+    const response = await fetch(apiPath("/api/ksef/automation-health"));
+    if (response.ok) {
+      setAutomationHealth((await response.json()) as AutomationHealth);
+    }
+  }
+
   async function loadBilling() {
     if (!shop) return;
 
@@ -394,6 +416,7 @@ export function App() {
   useEffect(() => {
     if (view === "queue") {
       void loadQueue();
+      void loadAutomationHealth();
     }
   }, [shop, queueStatus, view]);
 
@@ -638,6 +661,7 @@ export function App() {
       }
 
       await loadQueue();
+      void loadAutomationHealth();
       void loadInvoices();
       void loadSetupStatus();
     } catch (error) {
@@ -659,6 +683,7 @@ export function App() {
       }
 
       await loadQueue();
+      void loadAutomationHealth();
       void loadInvoices();
       void loadSetupStatus();
     } catch (error) {
@@ -1378,6 +1403,55 @@ export function App() {
                   {view === "queue" ? (
                     <BlockStack gap="400">
                       <Banner tone="info">{t("queue.help")}</Banner>
+                      {automationHealth ? (
+                        <div className="automation-health">
+                          <InlineStack align="space-between" blockAlign="center" gap="300">
+                            <BlockStack gap="100">
+                              <Text as="h3" variant="headingMd">
+                                {t("queue.automationTitle")}
+                              </Text>
+                              <Text as="p" tone="subdued">
+                                {t("queue.automationDescription")}
+                              </Text>
+                            </BlockStack>
+                            <Badge
+                              tone={
+                                automationHealth.workerSecretConfigured || !automationHealth.productionRequiresWorkerSecret
+                                  ? "success"
+                                  : "critical"
+                              }
+                            >
+                              {automationHealth.workerSecretConfigured
+                                ? t("queue.workerSecured")
+                                : t("queue.workerSecretMissing")}
+                            </Badge>
+                          </InlineStack>
+                          <div className="automation-grid">
+                            <div className="automation-item">
+                              <span>{t("queue.liveSubmission")}</span>
+                              <strong>{automationHealth.liveSubmissionEnabled ? t("settings.enabled") : t("settings.disabled")}</strong>
+                            </div>
+                            <div className="automation-item">
+                              <span>{t("queue.dueRetries")}</span>
+                              <strong>{automationHealth.dueRetries}</strong>
+                            </div>
+                            <div className="automation-item">
+                              <span>{t("queue.pendingRefreshes")}</span>
+                              <strong>{automationHealth.pendingStatusRefreshes}</strong>
+                            </div>
+                            <div className="automation-item">
+                              <span>{t("queue.failedSubmissions")}</span>
+                              <strong>{automationHealth.failedSubmissions}</strong>
+                            </div>
+                          </div>
+                          <Text as="p" tone="subdued">
+                            {t("queue.workerEndpoints", {
+                              retry: automationHealth.retryEndpoint,
+                              refresh: automationHealth.statusRefreshEndpoint
+                            })}
+                          </Text>
+                        </div>
+                      ) : null}
                       {queueError ? <Banner tone="critical">{queueError}</Banner> : null}
                       {queue ? (
                         <div className="queue-summary">

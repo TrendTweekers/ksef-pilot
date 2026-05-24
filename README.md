@@ -137,6 +137,14 @@ POST /api/ksef/refresh-statuses
 Authorization: Bearer <KSEF_WORKER_SECRET>
 ```
 
+Recommended Railway cron setup:
+
+- Every 5 minutes: `POST ${APP_URL}/api/ksef/retry-due?limit=10`
+- Every 10 minutes: `POST ${APP_URL}/api/ksef/refresh-statuses?limit=10`
+- Header: `Authorization: Bearer <KSEF_WORKER_SECRET>`
+
+The app's KSeF Queue tab exposes an automation health panel with due retries, pending status refreshes, failed submissions, and whether `KSEF_WORKER_SECRET` is configured.
+
 ## Critical Compliance Notes
 
 - KSeF tokens must remain encrypted at rest.

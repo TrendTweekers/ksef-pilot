@@ -231,6 +231,16 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           description: "Monitoruj wysyłki do KSeF, ponów błędy i odśwież statusy UPO.",
           help:
             "To jest panel operacyjny dla prawdziwej automatyzacji: pokazuje każdą próbę wysyłki, status, liczbę prób i następny retry.",
+          automationTitle: "Zdrowie automatyzacji",
+          automationDescription:
+            "Railway powinien cyklicznie wywoływać retry i odświeżanie statusów, aby faktury same przechodziły przez KSeF.",
+          workerSecured: "Worker zabezpieczony",
+          workerSecretMissing: "Brak sekretu workera",
+          liveSubmission: "Wysyłka live",
+          dueRetries: "Retry do wykonania",
+          pendingRefreshes: "Statusy do odświeżenia",
+          failedSubmissions: "Nieudane wysyłki",
+          workerEndpoints: "Worker endpoints: {{retry}} oraz {{refresh}}.",
           filter: "Filtr statusu",
           loading: "Ładowanie kolejki KSeF",
           loadError: "Nie udało się wczytać kolejki KSeF.",
@@ -497,6 +507,16 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           description: "Monitor KSeF submissions, retry failures, and refresh UPO statuses.",
           help:
             "This is the operations view for real automation: every submission attempt, status, retry count, and next retry is visible here.",
+          automationTitle: "Automation health",
+          automationDescription:
+            "Railway should call retry and status refresh jobs on a schedule so invoices keep moving through KSeF automatically.",
+          workerSecured: "Worker secured",
+          workerSecretMissing: "Worker secret missing",
+          liveSubmission: "Live submission",
+          dueRetries: "Due retries",
+          pendingRefreshes: "Pending refreshes",
+          failedSubmissions: "Failed submissions",
+          workerEndpoints: "Worker endpoints: {{retry}} and {{refresh}}.",
           filter: "Status filter",
           loading: "Loading KSeF queue",
           loadError: "Could not load the KSeF queue.",

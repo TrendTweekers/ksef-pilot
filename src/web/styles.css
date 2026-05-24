@@ -227,6 +227,44 @@ body {
   line-height: 1;
 }
 
+.automation-health {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--ff-border);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(35, 122, 87, 0.08), transparent 34%),
+    #fffdfa;
+}
+
+.automation-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.automation-item {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--ff-border);
+  border-radius: 8px;
+  background: var(--ff-card);
+}
+
+.automation-item span {
+  color: var(--ff-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.automation-item strong {
+  color: var(--ff-ink);
+  font-size: 18px;
+}
+
 .billing-summary {
   display: flex;
   align-items: center;
@@ -325,6 +363,7 @@ body {
   .settings-grid,
   .readiness-grid,
   .queue-summary,
+  .automation-grid,
   .plan-grid,
   .setup-grid,
   .order-fields {

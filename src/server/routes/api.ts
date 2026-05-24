@@ -349,6 +349,53 @@ apiRouter.post("/ksef/refresh-statuses", async (req, res, next) => {
   }
 });
 
+apiRouter.get("/ksef/automation-health", loadShop, async (_req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const now = new Date();
+    const [dueRetries, pendingStatusRefreshes, failedSubmissions] = await Promise.all([
+      prisma.ksefInvoice.count({
+        where: {
+          shopId: shop.id,
+          status: "retrying",
+          ksefNumber: null,
+          nextRetryAt: { lte: now }
+        }
+      }),
+      prisma.ksefSubmission.count({
+        where: {
+          shopId: shop.id,
+          mode: "live",
+          status: "submitted",
+          ksefNumber: null,
+          sessionReferenceNumber: { not: null },
+          invoiceReferenceNumber: { not: null }
+        }
+      }),
+      prisma.ksefSubmission.count({
+        where: {
+          shopId: shop.id,
+          status: "failed"
+        }
+      })
+    ]);
+
+    res.json({
+      workerSecretConfigured: Boolean(env.KSEF_WORKER_SECRET),
+      productionRequiresWorkerSecret: env.NODE_ENV === "production",
+      liveSubmissionEnabled: env.KSEF_LIVE_SUBMISSION_ENABLED,
+      retryEndpoint: "/api/ksef/retry-due",
+      statusRefreshEndpoint: "/api/ksef/refresh-statuses",
+      dueRetries,
+      pendingStatusRefreshes,
+      failedSubmissions,
+      checkedAt: now.toISOString()
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 apiRouter.get("/ksef/submissions", loadShop, async (req, res, next) => {
   try {
     const shop = res.locals.shop!;
