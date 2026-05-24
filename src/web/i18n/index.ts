@@ -214,6 +214,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           billingUnlimited: "Plan {{plan}}: nielimitowane faktury w tym miesiącu.",
           billingUsage: "Plan {{plan}}: wykorzystano {{used}}/{{limit}} faktur w tym miesiącu.",
           rememberedNips: "Zapisane numery NIP są pamiętane przy kliencie Shopify i uzupełniane w kolejnych zamówieniach B2B.",
+          recentWindow: "Aplikacja skanuje 100 najnowszych zamówień widocznych w Shopify API. Eksport tygodniowy i miesięczny działa na utworzonych szkicach faktur.",
           blockedSummary:
             "{{count}} zamówienie/zamówienia B2B wymaga ręcznego wystawienia, bo zawiera walutę albo VAT poza obecnym zakresem MVP.",
           blockedTitle: "Zamówienia do ręcznego wystawienia",
@@ -582,6 +583,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           billingUnlimited: "{{plan}} plan: unlimited invoices this month.",
           billingUsage: "{{plan}} plan: {{used}}/{{limit}} invoices used this month.",
           rememberedNips: "Saved buyer NIPs are remembered by Shopify customer and used to prefill future B2B orders.",
+          recentWindow: "The app scans the 100 most recent orders visible through the Shopify API. Weekly and monthly exports work from the draft invoices you create.",
           blockedSummary:
             "{{count}} B2B order(s) need manual invoicing because currency or VAT is outside the current MVP scope.",
           blockedTitle: "Orders to invoice manually",

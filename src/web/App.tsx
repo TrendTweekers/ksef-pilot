@@ -1382,6 +1382,7 @@ export function App() {
                         </Banner>
                       ) : null}
                       <Banner tone="info">{t("orders.rememberedNips")}</Banner>
+                      <Banner tone="info">{t("orders.recentWindow")}</Banner>
                       {blockedOrderCount ? (
                         <Banner tone="warning">{t("orders.blockedSummary", { count: blockedOrderCount })}</Banner>
                       ) : null}
