@@ -349,6 +349,115 @@ apiRouter.post("/ksef/refresh-statuses", async (req, res, next) => {
   }
 });
 
+apiRouter.get("/ksef/submissions", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const status = typeof req.query.status === "string" && req.query.status !== "all" ? req.query.status : undefined;
+    const submissions = await prisma.ksefSubmission.findMany({
+      where: {
+        shopId: shop.id,
+        ...(status ? { status } : {})
+      },
+      include: {
+        invoice: true
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100
+    });
+
+    const grouped = submissions.reduce<Record<string, number>>((counts, submission) => {
+      counts[submission.status] = (counts[submission.status] ?? 0) + 1;
+      return counts;
+    }, {});
+
+    res.json({
+      summary: {
+        total: submissions.length,
+        pending: grouped.pending ?? 0,
+        processing: grouped.processing ?? 0,
+        retrying: grouped.retrying ?? 0,
+        submitted: grouped.submitted ?? 0,
+        failed: grouped.failed ?? 0
+      },
+      submissions: submissions.map((submission) => ({
+        id: submission.id,
+        mode: submission.mode,
+        status: submission.status,
+        attempts: submission.attempts,
+        nextRetryAt: submission.nextRetryAt,
+        lastError: submission.lastError,
+        ksefNumber: submission.ksefNumber,
+        sessionReferenceNumber: submission.sessionReferenceNumber,
+        invoiceReferenceNumber: submission.invoiceReferenceNumber,
+        createdAt: submission.createdAt,
+        updatedAt: submission.updatedAt,
+        submittedAt: submission.submittedAt,
+        invoice: {
+          id: submission.invoice.id,
+          orderName: submission.invoice.orderName,
+          buyerName: submission.invoice.buyerName,
+          nip: submission.invoice.nip,
+          status: submission.invoice.status,
+          ksefNumber: submission.invoice.ksefNumber,
+          upoStatus: submission.invoice.upoStatus,
+          hasUpo: Boolean(submission.invoice.upoXml),
+          totalGross: submission.invoice.totalGross
+        }
+      }))
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post("/ksef/submissions/:submissionId/retry", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const submissionId = String(req.params.submissionId);
+    const submission = await prisma.ksefSubmission.findFirst({
+      where: {
+        id: submissionId,
+        shopId: shop.id
+      }
+    });
+
+    if (!submission) {
+      res.status(404).json({ error: "KSeF submission not found" });
+      return;
+    }
+
+    const result = await submitInvoiceToKsef(shop, submission.invoiceId);
+    res.json({
+      invoice: {
+        id: result.invoice.id,
+        orderName: result.invoice.orderName,
+        status: result.invoice.status,
+        ksefNumber: result.invoice.ksefNumber
+      },
+      submission: result.submission
+        ? {
+            id: result.submission.id,
+            mode: result.submission.mode,
+            status: result.submission.status,
+            attempts: result.submission.attempts,
+            nextRetryAt: result.submission.nextRetryAt,
+            lastError: result.submission.lastError,
+            ksefNumber: result.submission.ksefNumber
+          }
+        : null
+    });
+
+    await notifyTelegram(`KSeF Pilot manual retry: ${shop.domain} ${result.invoice.orderName} -> ${result.invoice.status}`);
+  } catch (error) {
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
+    next(error);
+  }
+});
+
 apiRouter.get("/orders", loadShop, async (req, res, next) => {
   try {
     const shop = res.locals.shop!;

@@ -18,8 +18,9 @@ import {
 import { useTranslation } from "react-i18next";
 import { AppBridgeBootstrap } from "./components/AppBridgeBootstrap";
 
-type View = "orders" | "invoices" | "settings" | "billing";
+type View = "orders" | "invoices" | "queue" | "settings" | "billing";
 type InvoicePeriod = "week" | "month" | "all";
+type QueueStatus = "all" | "pending" | "processing" | "retrying" | "submitted" | "failed";
 
 interface SettingsState {
   sellerNip: string;
@@ -86,6 +87,44 @@ interface InvoiceRow {
     sessionReferenceNumber?: string | null;
     invoiceReferenceNumber?: string | null;
   } | null;
+}
+
+interface QueueSubmission {
+  id: string;
+  mode: string;
+  status: string;
+  attempts: number;
+  nextRetryAt?: string | null;
+  lastError?: string | null;
+  ksefNumber?: string | null;
+  sessionReferenceNumber?: string | null;
+  invoiceReferenceNumber?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  submittedAt?: string | null;
+  invoice: {
+    id: string;
+    orderName: string;
+    buyerName: string;
+    nip: string;
+    status: string;
+    ksefNumber?: string | null;
+    upoStatus?: string | null;
+    hasUpo: boolean;
+    totalGross: string | number;
+  };
+}
+
+interface QueueResponse {
+  summary: {
+    total: number;
+    pending: number;
+    processing: number;
+    retrying: number;
+    submitted: number;
+    failed: number;
+  };
+  submissions: QueueSubmission[];
 }
 
 interface BillingSummary {
@@ -182,6 +221,11 @@ export function App() {
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
   const [refreshingStatusInvoiceId, setRefreshingStatusInvoiceId] = useState<string | null>(null);
   const [correctingInvoiceId, setCorrectingInvoiceId] = useState<string | null>(null);
+  const [queueStatus, setQueueStatus] = useState<QueueStatus>("all");
+  const [queue, setQueue] = useState<QueueResponse | null>(null);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [queueError, setQueueError] = useState("");
+  const [queueActionId, setQueueActionId] = useState<string | null>(null);
 
   function apiPath(path: string) {
     const separator = path.includes("?") ? "&" : "?";
@@ -270,6 +314,27 @@ export function App() {
     }
   }
 
+  async function loadQueue() {
+    if (!shop) return;
+
+    setQueueLoading(true);
+    setQueueError("");
+    try {
+      const response = await fetch(apiPath(`/api/ksef/submissions?status=${queueStatus}`));
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? t("queue.loadError"));
+      }
+
+      setQueue((await response.json()) as QueueResponse);
+    } catch (error) {
+      setQueueError(error instanceof Error ? error.message : t("queue.loadError"));
+    } finally {
+      setQueueLoading(false);
+    }
+  }
+
   async function loadBilling() {
     if (!shop) return;
 
@@ -325,6 +390,12 @@ export function App() {
       void loadInvoices();
     }
   }, [shop, invoicePeriod, view]);
+
+  useEffect(() => {
+    if (view === "queue") {
+      void loadQueue();
+    }
+  }, [shop, queueStatus, view]);
 
   async function saveToken() {
     if (!shop) {
@@ -555,6 +626,48 @@ export function App() {
     }
   }
 
+  async function refreshQueueStatus(submission: QueueSubmission) {
+    setQueueActionId(submission.id);
+    setQueueError("");
+    try {
+      const response = await fetch(apiPath(`/api/invoices/${submission.invoice.id}/refresh-status`), { method: "POST" });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? t("queue.refreshError"));
+      }
+
+      await loadQueue();
+      void loadInvoices();
+      void loadSetupStatus();
+    } catch (error) {
+      setQueueError(error instanceof Error ? error.message : t("queue.refreshError"));
+    } finally {
+      setQueueActionId(null);
+    }
+  }
+
+  async function retryQueueSubmission(submission: QueueSubmission) {
+    setQueueActionId(submission.id);
+    setQueueError("");
+    try {
+      const response = await fetch(apiPath(`/api/ksef/submissions/${submission.id}/retry`), { method: "POST" });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? t("queue.retryError"));
+      }
+
+      await loadQueue();
+      void loadInvoices();
+      void loadSetupStatus();
+    } catch (error) {
+      setQueueError(error instanceof Error ? error.message : t("queue.retryError"));
+    } finally {
+      setQueueActionId(null);
+    }
+  }
+
   function downloadInvoiceUpo(invoice: InvoiceRow) {
     window.open(apiPath(`/api/invoices/${invoice.id}/upo.xml`), "_blank");
   }
@@ -620,6 +733,7 @@ export function App() {
   const tabs = [
     { id: "orders", content: t("nav.orders") },
     { id: "invoices", content: t("nav.invoices") },
+    { id: "queue", content: t("nav.queue") },
     { id: "settings", content: t("nav.settings") },
     { id: "billing", content: t("nav.billing") }
   ];
@@ -811,16 +925,20 @@ export function App() {
                             ? t("orders.title")
                             : view === "invoices"
                               ? t("invoices.title")
-                              : t("billing.title")}
+                              : view === "queue"
+                                ? t("queue.title")
+                                : t("billing.title")}
                       </Text>
                       <Text as="p" tone="subdued">
                         {view === "orders"
                           ? t("orders.description")
                           : view === "invoices"
                             ? t("invoices.description")
-                            : view === "billing"
-                              ? t("billing.description")
-                              : t("home.description")}
+                            : view === "queue"
+                              ? t("queue.description")
+                              : view === "billing"
+                                ? t("billing.description")
+                                : t("home.description")}
                       </Text>
                     </BlockStack>
                     <Badge tone={ksefBadgeTone}>{ksefStatusLabel}</Badge>
@@ -1254,6 +1372,124 @@ export function App() {
                           <pre>{xmlPreview.xml}</pre>
                         </div>
                       ) : null}
+                    </BlockStack>
+                  ) : null}
+
+                  {view === "queue" ? (
+                    <BlockStack gap="400">
+                      <Banner tone="info">{t("queue.help")}</Banner>
+                      {queueError ? <Banner tone="critical">{queueError}</Banner> : null}
+                      {queue ? (
+                        <div className="queue-summary">
+                          {(["total", "processing", "retrying", "failed", "submitted"] as const).map((key) => (
+                            <div className="queue-summary-item" key={key}>
+                              <span>{t(`queue.summary.${key}`)}</span>
+                              <strong>{queue.summary[key]}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      <InlineStack align="space-between" blockAlign="end" gap="300">
+                        <div className="period-select">
+                          <Select
+                            label={t("queue.filter")}
+                            value={queueStatus}
+                            onChange={(value) => setQueueStatus(value as QueueStatus)}
+                            options={[
+                              { label: t("queue.status.all"), value: "all" },
+                              { label: t("queue.status.pending"), value: "pending" },
+                              { label: t("queue.status.processing"), value: "processing" },
+                              { label: t("queue.status.retrying"), value: "retrying" },
+                              { label: t("queue.status.submitted"), value: "submitted" },
+                              { label: t("queue.status.failed"), value: "failed" }
+                            ]}
+                          />
+                        </div>
+                        <Button onClick={loadQueue} loading={queueLoading}>
+                          {t("common.refresh")}
+                        </Button>
+                      </InlineStack>
+                      {queueLoading ? (
+                        <InlineStack align="center">
+                          <Spinner accessibilityLabel={t("queue.loading")} size="small" />
+                        </InlineStack>
+                      ) : null}
+                      {!queueLoading && queue?.submissions.length === 0 ? (
+                        <div className="empty-state">
+                          <Text as="h3" variant="headingMd">
+                            {t("queue.emptyTitle")}
+                          </Text>
+                          <Text as="p" tone="subdued">
+                            {t("queue.empty")}
+                          </Text>
+                        </div>
+                      ) : null}
+                      <BlockStack gap="300">
+                        {queue?.submissions.map((submission) => (
+                          <div className="queue-row" key={submission.id}>
+                            <InlineStack align="space-between" blockAlign="start" gap="300">
+                              <BlockStack gap="100">
+                                <InlineStack gap="200" blockAlign="center">
+                                  <Text as="h3" variant="headingMd">
+                                    {submission.invoice.orderName}
+                                  </Text>
+                                  <Badge tone={submission.status === "submitted" ? "success" : submission.status === "failed" ? "critical" : "attention"}>
+                                    {t(`queue.status.${submission.status}`, { defaultValue: submission.status })}
+                                  </Badge>
+                                  <Badge tone="info">{submission.mode}</Badge>
+                                </InlineStack>
+                                <Text as="p" tone="subdued">
+                                  {submission.invoice.buyerName} - NIP {submission.invoice.nip} -{" "}
+                                  {Number(submission.invoice.totalGross).toFixed(2)} PLN
+                                </Text>
+                                <Text as="p" tone="subdued">
+                                  {t("queue.createdLine", {
+                                    date: new Date(submission.createdAt).toLocaleString(locale),
+                                    attempts: submission.attempts
+                                  })}
+                                </Text>
+                                {submission.nextRetryAt ? (
+                                  <Text as="p" tone="subdued">
+                                    {t("queue.nextRetry", { date: new Date(submission.nextRetryAt).toLocaleString(locale) })}
+                                  </Text>
+                                ) : null}
+                                {submission.invoiceReferenceNumber ? (
+                                  <Text as="p" tone="subdued">
+                                    {t("invoices.invoiceReference", { number: submission.invoiceReferenceNumber })}
+                                  </Text>
+                                ) : null}
+                                {submission.ksefNumber || submission.invoice.ksefNumber ? (
+                                  <Text as="p" tone="success">
+                                    {t("invoices.ksefApproved", { number: submission.ksefNumber ?? submission.invoice.ksefNumber })}
+                                  </Text>
+                                ) : null}
+                                {submission.lastError ? (
+                                  <Text as="p" tone="critical">
+                                    {submission.lastError}
+                                  </Text>
+                                ) : null}
+                              </BlockStack>
+                              <InlineStack gap="200">
+                                {submission.mode === "live" && submission.invoiceReferenceNumber ? (
+                                  <Button loading={queueActionId === submission.id} onClick={() => refreshQueueStatus(submission)}>
+                                    {t("invoices.refreshStatus")}
+                                  </Button>
+                                ) : null}
+                                {submission.status === "failed" || submission.status === "retrying" ? (
+                                  <Button
+                                    variant="primary"
+                                    loading={queueActionId === submission.id}
+                                    disabled={liveSubmissionBlocked && submission.mode === "live"}
+                                    onClick={() => retryQueueSubmission(submission)}
+                                  >
+                                    {t("queue.retryNow")}
+                                  </Button>
+                                ) : null}
+                              </InlineStack>
+                            </InlineStack>
+                          </div>
+                        ))}
+                      </BlockStack>
                     </BlockStack>
                   ) : null}
 

@@ -92,6 +92,7 @@ body {
 .settings-panel,
 .order-row,
 .invoice-row,
+.queue-row,
 .plan-card,
 .billing-summary,
 .xml-preview {
@@ -191,10 +192,39 @@ body {
 }
 
 .order-row,
-.invoice-row {
+.invoice-row,
+.queue-row {
   display: grid;
   gap: 16px;
   padding: 16px;
+}
+
+.queue-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.queue-summary-item {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--ff-border);
+  border-radius: 8px;
+  background: var(--ff-card);
+}
+
+.queue-summary-item span {
+  color: var(--ff-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.queue-summary-item strong {
+  color: var(--ff-ink);
+  font-size: 24px;
+  line-height: 1;
 }
 
 .billing-summary {
@@ -294,6 +324,7 @@ body {
   .stat-grid,
   .settings-grid,
   .readiness-grid,
+  .queue-summary,
   .plan-grid,
   .setup-grid,
   .order-fields {

@@ -32,6 +32,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
         nav: {
           orders: "Zamówienia",
           invoices: "Faktury",
+          queue: "Kolejka KSeF",
           settings: "Ustawienia KSeF",
           billing: "Rozliczenia"
         },
@@ -225,6 +226,37 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           openError: "Nie udało się otworzyć XML faktury.",
           validateError: "Nie udało się zwalidować XML faktury."
         },
+        queue: {
+          title: "Kolejka KSeF",
+          description: "Monitoruj wysyłki do KSeF, ponów błędy i odśwież statusy UPO.",
+          help:
+            "To jest panel operacyjny dla prawdziwej automatyzacji: pokazuje każdą próbę wysyłki, status, liczbę prób i następny retry.",
+          filter: "Filtr statusu",
+          loading: "Ładowanie kolejki KSeF",
+          loadError: "Nie udało się wczytać kolejki KSeF.",
+          refreshError: "Nie udało się odświeżyć statusu tej wysyłki.",
+          retryError: "Nie udało się ponowić wysyłki.",
+          retryNow: "Ponów teraz",
+          emptyTitle: "Brak wysyłek KSeF",
+          empty: "Wyślij szkic faktury w trybie testowym lub live, a próba pojawi się tutaj.",
+          createdLine: "Utworzono {{date}} - próby: {{attempts}}",
+          nextRetry: "Następna próba: {{date}}",
+          summary: {
+            total: "Razem",
+            processing: "W toku",
+            retrying: "Retry",
+            failed: "Błędy",
+            submitted: "Wysłane"
+          },
+          status: {
+            all: "Wszystkie",
+            pending: "Oczekujące",
+            processing: "W toku",
+            retrying: "Retry",
+            submitted: "Wysłane",
+            failed: "Błąd"
+          }
+        },
         billing: {
           title: "Rozliczenia",
           description: "Wybierz lub zmień plan na stronie rozliczeń Shopify.",
@@ -267,6 +299,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
         nav: {
           orders: "Orders",
           invoices: "Invoices",
+          queue: "KSeF Queue",
           settings: "KSeF Settings",
           billing: "Billing"
         },
@@ -458,6 +491,37 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           ksefApproved: "Invoice approved in KSeF: {{number}}",
           openError: "Could not open invoice XML.",
           validateError: "Could not validate invoice XML."
+        },
+        queue: {
+          title: "KSeF Queue",
+          description: "Monitor KSeF submissions, retry failures, and refresh UPO statuses.",
+          help:
+            "This is the operations view for real automation: every submission attempt, status, retry count, and next retry is visible here.",
+          filter: "Status filter",
+          loading: "Loading KSeF queue",
+          loadError: "Could not load the KSeF queue.",
+          refreshError: "Could not refresh this submission status.",
+          retryError: "Could not retry this submission.",
+          retryNow: "Retry now",
+          emptyTitle: "No KSeF submissions yet",
+          empty: "Submit a draft invoice in test or live mode, and the attempt will appear here.",
+          createdLine: "Created {{date}} - attempts: {{attempts}}",
+          nextRetry: "Next retry: {{date}}",
+          summary: {
+            total: "Total",
+            processing: "Processing",
+            retrying: "Retrying",
+            failed: "Failed",
+            submitted: "Submitted"
+          },
+          status: {
+            all: "All",
+            pending: "Pending",
+            processing: "Processing",
+            retrying: "Retrying",
+            submitted: "Submitted",
+            failed: "Failed"
+          }
         },
         billing: {
           title: "Billing",
