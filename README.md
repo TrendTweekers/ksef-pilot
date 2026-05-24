@@ -108,6 +108,7 @@ Live submission is disabled by default. To test with a real KSeF test/demo token
 KSEF_ENVIRONMENT=TEST
 KSEF_LIVE_SUBMISSION_ENABLED=true
 KSEF_WORKER_SECRET=generate-a-long-random-secret
+KSEF_WORKER_AUTORUN=false
 ```
 
 Optional base URL override:
@@ -142,6 +143,16 @@ Recommended Railway cron setup:
 - Every 5 minutes: `POST ${APP_URL}/api/ksef/retry-due?limit=10`
 - Every 10 minutes: `POST ${APP_URL}/api/ksef/refresh-statuses?limit=10`
 - Header: `Authorization: Bearer <KSEF_WORKER_SECRET>`
+
+Alternative Railway setup: enable the built-in worker loop on a single replica:
+
+```text
+KSEF_WORKER_AUTORUN=true
+KSEF_WORKER_INTERVAL_SECONDS=300
+KSEF_WORKER_BATCH_LIMIT=10
+```
+
+When autorun is enabled, the web process checks due retries and pending KSeF status refreshes on the interval above. Keep this off if you use external Railway cron or run multiple replicas.
 
 The app's KSeF Queue tab exposes an automation health panel with due retries, pending status refreshes, failed submissions, and whether `KSEF_WORKER_SECRET` is configured.
 

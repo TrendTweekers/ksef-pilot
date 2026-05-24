@@ -19,6 +19,7 @@ import { describeSchemaValidation, validateFa3XmlAgainstOfficialXsd } from "../s
 import { fetchShopifyOrders, generateCorrectionForInvoice, generateDraftInvoiceForOrder, saveOrderFlag } from "../services/orders.js";
 import { buildInvoicePdf } from "../services/pdf.js";
 import { notifyTelegram } from "../services/telegram.js";
+import { getKsefWorkerStatus, runKsefWorkerOnce } from "../services/ksefWorker.js";
 
 export const apiRouter = Router();
 
@@ -403,6 +404,8 @@ apiRouter.get("/ksef/automation-health", loadShop, async (_req, res, next) => {
 
     res.json({
       workerSecretConfigured: Boolean(env.KSEF_WORKER_SECRET),
+      workerAutorunEnabled: env.KSEF_WORKER_AUTORUN,
+      worker: getKsefWorkerStatus(),
       productionRequiresWorkerSecret: env.NODE_ENV === "production",
       liveSubmissionEnabled: env.KSEF_LIVE_SUBMISSION_ENABLED,
       retryEndpoint: "/api/ksef/retry-due",
@@ -412,6 +415,25 @@ apiRouter.get("/ksef/automation-health", loadShop, async (_req, res, next) => {
       failedSubmissions,
       checkedAt: now.toISOString()
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post("/ksef/worker/run-once", async (req, res, next) => {
+  try {
+    if (!env.KSEF_WORKER_SECRET && env.NODE_ENV === "production") {
+      res.status(503).json({ error: "KSEF_WORKER_SECRET is required in production." });
+      return;
+    }
+
+    if (env.KSEF_WORKER_SECRET && req.header("authorization") !== `Bearer ${env.KSEF_WORKER_SECRET}`) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const result = await runKsefWorkerOnce();
+    res.json(result);
   } catch (error) {
     next(error);
   }

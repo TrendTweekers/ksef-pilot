@@ -352,6 +352,14 @@ body {
   font-size: 18px;
 }
 
+.worker-runtime {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--ff-paper);
+}
+
 .billing-summary {
   display: flex;
   align-items: center;

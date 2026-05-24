@@ -9,6 +9,7 @@ import { env } from "./config/env.js";
 import { authRouter } from "./routes/auth.js";
 import { apiRouter } from "./routes/api.js";
 import { webhookRouter } from "./routes/webhooks.js";
+import { startKsefWorker } from "./services/ksefWorker.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,4 +55,8 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
 
 app.listen(env.PORT, () => {
   console.log(`KSeF Pilot API listening on :${env.PORT}`);
+  const worker = startKsefWorker();
+  if (worker.autorun) {
+    console.log(`KSeF Pilot worker autorun enabled every ${worker.intervalSeconds}s`);
+  }
 });

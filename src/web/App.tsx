@@ -133,6 +133,7 @@ interface QueueResponse {
 
 interface AutomationHealth {
   workerSecretConfigured: boolean;
+  workerAutorunEnabled: boolean;
   productionRequiresWorkerSecret: boolean;
   liveSubmissionEnabled: boolean;
   retryEndpoint: string;
@@ -141,6 +142,17 @@ interface AutomationHealth {
   pendingStatusRefreshes: number;
   failedSubmissions: number;
   checkedAt: string;
+  worker?: {
+    autorun: boolean;
+    running: boolean;
+    intervalSeconds: number;
+    batchLimit: number;
+    lastStartedAt: string | null;
+    lastFinishedAt: string | null;
+    lastError: string | null;
+    lastRetryProcessed: number;
+    lastStatusProcessed: number;
+  };
 }
 
 interface BillingSummary {
@@ -1645,6 +1657,10 @@ export function App() {
                               <strong>{automationHealth.liveSubmissionEnabled ? t("settings.enabled") : t("settings.disabled")}</strong>
                             </div>
                             <div className="automation-item">
+                              <span>{t("queue.workerAutorun")}</span>
+                              <strong>{automationHealth.workerAutorunEnabled ? t("settings.enabled") : t("settings.disabled")}</strong>
+                            </div>
+                            <div className="automation-item">
                               <span>{t("queue.dueRetries")}</span>
                               <strong>{automationHealth.dueRetries}</strong>
                             </div>
@@ -1663,6 +1679,25 @@ export function App() {
                               refresh: automationHealth.statusRefreshEndpoint
                             })}
                           </Text>
+                          {automationHealth.worker ? (
+                            <div className="worker-runtime">
+                              <Text as="p" tone="subdued">
+                                {t("queue.workerRuntime", {
+                                  interval: automationHealth.worker.intervalSeconds,
+                                  limit: automationHealth.worker.batchLimit,
+                                  last:
+                                    automationHealth.worker.lastFinishedAt
+                                      ? new Date(automationHealth.worker.lastFinishedAt).toLocaleString(locale)
+                                      : t("queue.workerNever")
+                                })}
+                              </Text>
+                              {automationHealth.worker.lastError ? (
+                                <Text as="p" tone="critical">
+                                  {automationHealth.worker.lastError}
+                                </Text>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
                       {queueError ? <Banner tone="critical">{queueError}</Banner> : null}
