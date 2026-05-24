@@ -171,6 +171,17 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           billingUnlimited: "Plan {{plan}}: nielimitowane faktury w tym miesiącu.",
           billingUsage: "Plan {{plan}}: wykorzystano {{used}}/{{limit}} faktur w tym miesiącu.",
           rememberedNips: "Zapisane numery NIP są pamiętane przy kliencie Shopify i uzupełniane w kolejnych zamówieniach B2B.",
+          blockedSummary:
+            "{{count}} zamówienie/zamówienia B2B wymaga ręcznego wystawienia, bo zawiera walutę albo VAT poza obecnym zakresem MVP.",
+          unsupported: {
+            non_pln:
+              "To zamówienie jest w walucie innej niż PLN. Obsługa walut obcych i przeliczeń VAT jest w przygotowaniu — fakturę wystaw ręcznie.",
+            mixed_vat:
+              "To zamówienie zawiera stawki VAT inne niż 23%. Obsługa wielu stawek jest w przygotowaniu — fakturę wystaw ręcznie.",
+            missing_tax_lines:
+              "To zamówienie ma pozycję bez linii podatku Shopify. Zamówienia zwolnione lub 0% nie są jeszcze obsługiwane — fakturę wystaw ręcznie.",
+            default: "To zamówienie nie jest jeszcze obsługiwane przez automatyczne FA(3)."
+          },
           loadError: "Nie udało się pobrać zamówień Shopify. Sprawdź instalację aplikacji i dostęp read_orders.",
           missingShop: "Shopify nie przekazało domeny sklepu. Otwórz aplikację ponownie z menu Aplikacje w panelu Shopify.",
           saveError: "Nie udało się zapisać oznaczenia B2B.",
@@ -447,6 +458,17 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           billingUnlimited: "{{plan}} plan: unlimited invoices this month.",
           billingUsage: "{{plan}} plan: {{used}}/{{limit}} invoices used this month.",
           rememberedNips: "Saved buyer NIPs are remembered by Shopify customer and used to prefill future B2B orders.",
+          blockedSummary:
+            "{{count}} B2B order(s) need manual invoicing because currency or VAT is outside the current MVP scope.",
+          unsupported: {
+            non_pln:
+              "This order uses a non-PLN currency. Foreign-currency and VAT conversion support is in progress; issue this invoice manually for now.",
+            mixed_vat:
+              "This order contains VAT rates other than 23%. Multi-rate VAT support is in progress; issue this invoice manually for now.",
+            missing_tax_lines:
+              "This order has a line item without Shopify tax lines. Exempt or 0% orders are not supported yet; issue this invoice manually for now.",
+            default: "This order is not yet supported for automatic FA(3) generation."
+          },
           loadError: "Could not load Shopify orders. Check that the app has read_orders access and the store is installed.",
           missingShop: "Shopify did not provide the shop domain. Reopen the app from the Shopify admin Apps menu.",
           saveError: "Could not save the B2B flag.",

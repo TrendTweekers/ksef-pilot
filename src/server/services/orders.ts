@@ -30,6 +30,11 @@ interface ShopifyLineItemNode {
   name: string;
   quantity: number;
   discountedTotalSet: { shopMoney: Money };
+  taxLines: Array<{
+    rate: number;
+    title?: string | null;
+    priceSet: { shopMoney: Money };
+  }>;
 }
 
 interface ShopifyRefundLineItemNode {
@@ -57,6 +62,7 @@ interface ShopifyOrderNode {
   name: string;
   createdAt: string;
   currencyCode: string;
+  taxesIncluded: boolean;
   currentTotalPriceSet: { shopMoney: Money };
   customer?: {
     id: string;
@@ -93,6 +99,7 @@ export interface OrderListItem {
   processed: boolean;
   invoiceStatus?: string;
   ksefNumber?: string;
+  unsupportedReason?: "non_pln" | "mixed_vat" | "missing_tax_lines";
 }
 
 const orderFields = `
@@ -100,6 +107,7 @@ const orderFields = `
   name
   createdAt
   currencyCode
+  taxesIncluded
   currentTotalPriceSet {
     shopMoney {
       amount
@@ -129,6 +137,16 @@ const orderFields = `
         shopMoney {
           amount
           currencyCode
+        }
+      }
+      taxLines {
+        title
+        rate
+        priceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
         }
       }
     }
@@ -200,6 +218,32 @@ function orderBuyer(order: ShopifyOrderNode) {
   };
 }
 
+function isStandardVat23(rate: number) {
+  return Math.abs(rate - 0.23) < 0.001;
+}
+
+function invoiceSupportIssue(order: ShopifyOrderNode): OrderListItem["unsupportedReason"] {
+  if (order.currencyCode !== "PLN" && !env.ALLOW_NON_PLN_TEST_INVOICES) {
+    return "non_pln";
+  }
+
+  for (const line of order.lineItems.nodes) {
+    if (!line.taxLines.length) {
+      return "missing_tax_lines";
+    }
+
+    if (line.taxLines.some((taxLine) => !isStandardVat23(Number(taxLine.rate)))) {
+      return "mixed_vat";
+    }
+  }
+
+  return undefined;
+}
+
+function lineTaxAmount(line: ShopifyLineItemNode) {
+  return roundMoney(line.taxLines.reduce((sum, taxLine) => sum + toNumber(taxLine.priceSet.shopMoney.amount), 0));
+}
+
 function toOrderListItem(
   order: ShopifyOrderNode,
   flags: Map<string, Awaited<ReturnType<typeof prisma.orderFlag.findMany>>[number]>,
@@ -231,7 +275,8 @@ function toOrderListItem(
     isB2b: flag?.isB2b ?? Boolean(buyerNip),
     processed: Boolean(flag?.processedAt ?? invoice),
     invoiceStatus: invoice?.status,
-    ksefNumber: invoice?.ksefNumber ?? undefined
+    ksefNumber: invoice?.ksefNumber ?? undefined,
+    unsupportedReason: invoiceSupportIssue(order)
   };
 }
 
@@ -331,16 +376,26 @@ function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyer
   }
 
   if (order.currencyCode !== "PLN" && !env.ALLOW_NON_PLN_TEST_INVOICES) {
-    throw new Error("MVP supports PLN invoices only.");
+    throw new Error("This order is not yet supported because it is not in PLN. Foreign-currency FA(3) invoices require currency conversion handling and should be issued manually for now.");
+  }
+
+  const supportIssue = invoiceSupportIssue(order);
+  if (supportIssue === "missing_tax_lines") {
+    throw new Error("This order is not yet supported because at least one line item has no Shopify tax line. Tax-exempt and zero-tax invoices should be issued manually for now.");
+  }
+
+  if (supportIssue === "mixed_vat") {
+    throw new Error("This order is not yet supported because it contains VAT rates other than 23%. Multi-rate VAT support is in progress; issue this invoice manually for now.");
   }
 
   const invoiceCurrency = order.currencyCode === "PLN" ? "PLN" : "PLN";
 
   const buyer = orderBuyer(order);
   const lineItems = order.lineItems.nodes.map((line) => {
-    const gross = roundMoney(toNumber(line.discountedTotalSet.shopMoney.amount));
-    const net = roundMoney(gross / 1.23);
-    const vat = roundMoney(gross - net);
+    const lineAmount = roundMoney(toNumber(line.discountedTotalSet.shopMoney.amount));
+    const vat = lineTaxAmount(line);
+    const net = order.taxesIncluded ? roundMoney(lineAmount - vat) : lineAmount;
+    const gross = order.taxesIncluded ? lineAmount : roundMoney(net + vat);
     const quantity = Math.max(1, line.quantity);
 
     return {

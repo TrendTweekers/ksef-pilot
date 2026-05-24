@@ -59,6 +59,7 @@ interface OrderRow {
   processed: boolean;
   invoiceStatus?: string;
   ksefNumber?: string;
+  unsupportedReason?: "non_pln" | "mixed_vat" | "missing_tax_lines";
 }
 
 interface InvoiceRow {
@@ -529,7 +530,7 @@ export function App() {
 
   async function generateReadyDrafts() {
     const readyOrders = orders.filter(
-      (order) => order.isB2b && !order.processed && order.buyerNip.replace(/\D/g, "").length === 10
+      (order) => order.isB2b && !order.processed && !order.unsupportedReason && order.buyerNip.replace(/\D/g, "").length === 10
     );
 
     if (!readyOrders.length) return;
@@ -767,8 +768,9 @@ export function App() {
   const draftCount = orders.filter((order) => order.invoiceStatus === "draft").length;
   const readyCount = orders.filter((order) => order.isB2b && !order.processed).length;
   const readyVisibleCount = orders.filter(
-    (order) => order.isB2b && !order.processed && order.buyerNip.replace(/\D/g, "").length === 10
+    (order) => order.isB2b && !order.processed && !order.unsupportedReason && order.buyerNip.replace(/\D/g, "").length === 10
   ).length;
+  const blockedOrderCount = orders.filter((order) => order.isB2b && !order.processed && order.unsupportedReason).length;
   const limitReached = billing ? !billing.canGenerate : false;
   const locale = i18n.language.startsWith("en") ? "en" : "pl";
   const currentPlanName = billing ? t(`plans.${billing.plan}`, { defaultValue: billing.planName }) : "";
@@ -1099,6 +1101,9 @@ export function App() {
                         </Banner>
                       ) : null}
                       <Banner tone="info">{t("orders.rememberedNips")}</Banner>
+                      {blockedOrderCount ? (
+                        <Banner tone="warning">{t("orders.blockedSummary", { count: blockedOrderCount })}</Banner>
+                      ) : null}
                       {orderError ? (
                         <Banner tone="critical">
                           <BlockStack gap="200">
@@ -1193,6 +1198,13 @@ export function App() {
                                 {currencyWarning(order, t)}
                               </Text>
                             ) : null}
+                            {order.unsupportedReason ? (
+                              <Banner tone="warning">
+                                {t(`orders.unsupported.${order.unsupportedReason}`, {
+                                  defaultValue: t("orders.unsupported.default")
+                                })}
+                              </Banner>
+                            ) : null}
                             <InlineStack gap="200">
                               <Button loading={actionOrderId === order.id} onClick={() => saveFlag(order)}>
                                 {t("orders.saveFlag")}
@@ -1204,6 +1216,7 @@ export function App() {
                                   limitReached ||
                                   !order.isB2b ||
                                   order.processed ||
+                                  Boolean(order.unsupportedReason) ||
                                   order.buyerNip.replace(/\D/g, "").length !== 10
                                 }
                                 onClick={() => generateInvoice(order)}
