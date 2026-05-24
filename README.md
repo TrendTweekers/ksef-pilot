@@ -28,6 +28,7 @@ This scaffold starts the MVP with:
 - KSeF test-mode submission workflow and live submission adapter using the KSeF API v2 TypeScript client
 - Retry queue metadata and a Railway-callable retry worker endpoint
 - Linked correction invoice drafts for Shopify refunds or order corrections
+- Shopify refund/order edit webhooks that flag existing invoices as needing correction
 - Embedded Polaris admin shell with Orders, Settings, and Billing views
 - Railway deployment config
 

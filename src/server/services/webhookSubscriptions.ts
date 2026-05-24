@@ -8,7 +8,14 @@ interface WebhookCreateResponse {
   };
 }
 
-async function registerWebhook(shop: Shop, topic: "APP_UNINSTALLED" | "APP_SUBSCRIPTIONS_UPDATE") {
+type CoreWebhookTopic =
+  | "APP_UNINSTALLED"
+  | "APP_SUBSCRIPTIONS_UPDATE"
+  | "REFUNDS_CREATE"
+  | "ORDERS_EDITED"
+  | "ORDERS_UPDATED";
+
+async function registerWebhook(shop: Shop, topic: CoreWebhookTopic) {
   const data = await shopifyGraphql<WebhookCreateResponse>(
     shop.domain,
     shop.accessToken,
@@ -33,9 +40,12 @@ async function registerWebhook(shop: Shop, topic: "APP_UNINSTALLED" | "APP_SUBSC
 }
 
 export async function registerCoreWebhooks(shop: Shop) {
-  const topics: Array<"APP_UNINSTALLED" | "APP_SUBSCRIPTIONS_UPDATE"> = [
+  const topics: CoreWebhookTopic[] = [
     "APP_UNINSTALLED",
-    "APP_SUBSCRIPTIONS_UPDATE"
+    "APP_SUBSCRIPTIONS_UPDATE",
+    "REFUNDS_CREATE",
+    "ORDERS_EDITED",
+    "ORDERS_UPDATED"
   ];
 
   for (const topic of topics) {

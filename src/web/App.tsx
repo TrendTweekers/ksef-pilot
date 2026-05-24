@@ -51,6 +51,7 @@ interface InvoiceRow {
   nip: string;
   status: string;
   correctionOf?: string | null;
+  lastError?: string | null;
   ksefNumber?: string;
   upoStatus?: string | null;
   upoFetchedAt?: string | null;
@@ -1047,7 +1048,7 @@ export function App() {
                                   <Text as="h3" variant="headingMd">
                                     {invoice.orderName}
                                   </Text>
-                                  <Badge tone={invoice.status === "draft" ? "info" : invoice.status === "exported" ? "attention" : "success"}>
+                                  <Badge tone={invoice.status === "draft" ? "info" : invoice.status === "exported" || invoice.status === "correction_needed" ? "attention" : "success"}>
                                     {invoice.status}
                                   </Badge>
                                   {invoice.submission ? <Badge tone="info">{invoice.submission.mode}</Badge> : null}
@@ -1079,6 +1080,11 @@ export function App() {
                                 {invoice.submission?.lastError ? (
                                   <Text as="p" tone="critical">
                                     {invoice.submission.lastError}
+                                  </Text>
+                                ) : null}
+                                {invoice.lastError && !invoice.submission?.lastError ? (
+                                  <Text as="p" tone={invoice.status === "correction_needed" ? "subdued" : "critical"}>
+                                    {invoice.lastError}
                                   </Text>
                                 ) : null}
                                 <Text as="p" tone="subdued">
