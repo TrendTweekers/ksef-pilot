@@ -847,7 +847,7 @@ export function App() {
       return;
     }
 
-    window.open(billing.managedPricingUrl, "_top");
+    window.top?.location.assign(billing.managedPricingUrl);
   }
 
   async function dismissReview() {

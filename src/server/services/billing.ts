@@ -1,6 +1,7 @@
 import type { Shop } from "@prisma/client";
 import { env } from "../config/env.js";
 import { prisma } from "../config/prisma.js";
+import { shopifyGraphql } from "./shopify.js";
 
 export const billingPlans = {
   free: { name: "Free", price: 0, limit: 5 },
@@ -60,7 +61,17 @@ function shopAdminHandle(domain: string) {
 }
 
 export function managedPricingUrl(shop: Shop) {
-  return `https://admin.shopify.com/store/${shopAdminHandle(shop.domain)}/charges/${env.SHOPIFY_APP_HANDLE}/pricing_plans`;
+  const storeHandle = shopAdminHandle(shop.domain);
+
+  if (env.SHOPIFY_MANAGED_PRICING_URL_TEMPLATE) {
+    return env.SHOPIFY_MANAGED_PRICING_URL_TEMPLATE.replaceAll("{store}", storeHandle)
+      .replaceAll("{store_handle}", storeHandle)
+      .replaceAll("{shop}", shop.domain)
+      .replaceAll("{shop_domain}", shop.domain)
+      .replaceAll("{app_handle}", env.SHOPIFY_APP_HANDLE);
+  }
+
+  return `https://admin.shopify.com/store/${storeHandle}/charges/${env.SHOPIFY_APP_HANDLE}/pricing_plans`;
 }
 
 export async function getBillingSummary(shop: Shop) {
@@ -243,5 +254,117 @@ export async function applyBillingWebhookUpdate(shopDomain: string, payload: Rec
     parsed,
     previousPlan,
     nextPlan: effectivePlan(updated)
+  };
+}
+
+interface ActiveSubscriptionsResponse {
+  currentAppInstallation: {
+    activeSubscriptions: Array<{
+      id: string;
+      name: string;
+      status: string;
+      lineItems?: Array<Record<string, unknown>>;
+    }>;
+  };
+}
+
+const activeSubscriptionsQuery = `#graphql
+  query KsefPilotActiveSubscriptions {
+    currentAppInstallation {
+      activeSubscriptions {
+        id
+        name
+        status
+        lineItems {
+          plan {
+            pricingDetails {
+              ... on AppRecurringPricing {
+                price {
+                  amount
+                  currencyCode
+                }
+                interval
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+export async function reconcileShopBillingPlan(shop: Shop) {
+  const data = await shopifyGraphql<ActiveSubscriptionsResponse>(
+    shop.domain,
+    shop.accessToken,
+    activeSubscriptionsQuery
+  );
+  const activeSubscription = data.currentAppInstallation.activeSubscriptions.find((subscription) =>
+    isPaidBillingStatus(subscription.status)
+  );
+  const previousPlan = normalizePlan(shop.plan);
+
+  if (!activeSubscription) {
+    const updated = await prisma.shop.update({
+      where: { id: shop.id },
+      data: {
+        plan: "free",
+        billingStatus: "none",
+        billingSubscriptionId: null
+      }
+    });
+
+    return { shop: updated, previousPlan, nextPlan: "free" as BillingPlanHandle, status: "none" };
+  }
+
+  const parsed = parseBillingWebhook({ app_subscription: activeSubscription });
+  const nextPlan = parsed.plan ?? previousPlan;
+  const updated = await prisma.shop.update({
+    where: { id: shop.id },
+    data: {
+      plan: nextPlan,
+      billingStatus: activeSubscription.status,
+      billingSubscriptionId: activeSubscription.id
+    }
+  });
+
+  return {
+    shop: updated,
+    previousPlan,
+    nextPlan: effectivePlan(updated),
+    status: activeSubscription.status
+  };
+}
+
+export async function reconcileBillingPlans(limit = 50) {
+  const shops = await prisma.shop.findMany({
+    where: {
+      isActive: true,
+      accessToken: { not: "" }
+    },
+    take: limit,
+    orderBy: { updatedAt: "asc" }
+  });
+  let changed = 0;
+  const errors: Array<{ shop: string; error: string }> = [];
+
+  for (const shop of shops) {
+    try {
+      const result = await reconcileShopBillingPlan(shop);
+      if (result.previousPlan !== result.nextPlan || normalizeBillingStatus(shop.billingStatus) !== normalizeBillingStatus(result.status)) {
+        changed += 1;
+      }
+    } catch (error) {
+      errors.push({
+        shop: shop.domain,
+        error: error instanceof Error ? error.message : "Unknown billing reconcile error"
+      });
+    }
+  }
+
+  return {
+    checked: shops.length,
+    changed,
+    errors
   };
 }

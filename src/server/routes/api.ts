@@ -13,7 +13,7 @@ import {
 } from "../services/ksef.js";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
-import { billingPlans, getBillingSummary } from "../services/billing.js";
+import { billingPlans, getBillingSummary, reconcileBillingPlans } from "../services/billing.js";
 import { buildFa3Xml, buildSampleFa3Invoice, validateFa3Input } from "../services/fa3.js";
 import { describeSchemaValidation, validateFa3XmlAgainstOfficialXsd } from "../services/fa3Schema.js";
 import { fetchShopifyOrders, generateCorrectionForInvoice, generateDraftInvoiceForOrder, saveOrderFlag } from "../services/orders.js";
@@ -434,6 +434,32 @@ apiRouter.post("/ksef/worker/run-once", async (req, res, next) => {
 
     const result = await runKsefWorkerOnce();
     res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post("/billing/reconcile", async (req, res, next) => {
+  try {
+    if (!env.KSEF_WORKER_SECRET && env.NODE_ENV === "production") {
+      res.status(503).json({ error: "KSEF_WORKER_SECRET is required in production." });
+      return;
+    }
+
+    if (env.KSEF_WORKER_SECRET && req.header("authorization") !== `Bearer ${env.KSEF_WORKER_SECRET}`) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const limit = z.coerce.number().int().min(1).max(100).default(50).parse(req.query.limit ?? 50);
+    const result = await reconcileBillingPlans(limit);
+    res.json(result);
+
+    if (result.changed > 0 || result.errors.length > 0) {
+      await notifyTelegram(
+        `KSeF Pilot billing reconcile: checked ${result.checked}, changed ${result.changed}, errors ${result.errors.length}.`
+      );
+    }
   } catch (error) {
     next(error);
   }

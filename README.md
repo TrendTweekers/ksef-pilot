@@ -167,6 +167,21 @@ KSeF Pilot does not create charges inside the app. Merchants are sent to Shopify
 
 If a paid subscription is cancelled, declined, expired, or otherwise not active, KSeF Pilot falls back to the Free limit until Shopify sends an active subscription update again. Keep the `APP_SUBSCRIPTIONS_UPDATE` webhook registered so Railway receives plan changes immediately.
 
+The default Managed Pricing URL is:
+
+```text
+https://admin.shopify.com/store/{store}/charges/{SHOPIFY_APP_HANDLE}/pricing_plans
+```
+
+If Shopify shows a 404 for the plan picker, the app handle in Railway does not match Shopify's billing route for this app. Set `SHOPIFY_MANAGED_PRICING_URL_TEMPLATE` to the exact working route from Shopify. The template supports `{store}`, `{store_handle}`, `{shop}`, `{shop_domain}`, and `{app_handle}`.
+
+Billing is updated from the `APP_SUBSCRIPTIONS_UPDATE` webhook. As a safety net, Railway can reconcile active Shopify subscriptions daily:
+
+```text
+POST /api/billing/reconcile?limit=50
+Authorization: Bearer <KSEF_WORKER_SECRET>
+```
+
 ## Critical Compliance Notes
 
 - KSeF tokens must remain encrypted at rest.
