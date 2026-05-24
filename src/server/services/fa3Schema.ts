@@ -1,7 +1,28 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseXml, parseXsdAsync, validate } from "xml-xsd-engine";
 
 export const OFFICIAL_FA3_XSD_URL =
   "https://raw.githubusercontent.com/CIRFMF/ksef-docs/main/faktury/schemy/FA/schemat_FA(3)_v1-0E.xsd";
+const LOCAL_FA3_XSD_FILE = "schemat_FA3_v1-0E.xsd";
+const schemaDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../schemas/fa3");
+const schemaLocationFiles = new Map<string, string>([
+  [LOCAL_FA3_XSD_FILE, LOCAL_FA3_XSD_FILE],
+  ["schemat.xsd", LOCAL_FA3_XSD_FILE],
+  [
+    "http://crd.gov.pl/xml/schematy/dziedzinowe/mf/2022/01/05/eD/DefinicjeTypy/StrukturyDanych_v10-0E.xsd",
+    "StrukturyDanych_v10-0E.xsd"
+  ],
+  [
+    "http://crd.gov.pl/xml/schematy/dziedzinowe/mf/2022/01/05/eD/DefinicjeTypy/ElementarneTypyDanych_v10-0E.xsd",
+    "ElementarneTypyDanych_v10-0E.xsd"
+  ],
+  [
+    "http://crd.gov.pl/xml/schematy/dziedzinowe/mf/2022/01/05/eD/DefinicjeTypy/KodyKrajow_v10-0E.xsd",
+    "KodyKrajow_v10-0E.xsd"
+  ]
+]);
 
 let schemaPromise: Promise<unknown> | null = null;
 
@@ -14,26 +35,26 @@ interface SchemaIssue {
   severity: string;
 }
 
-async function loadText(url: string) {
-  const response = await fetch(url);
+function schemaFileForLocation(location: string) {
+  const fileName = schemaLocationFiles.get(location) ?? schemaLocationFiles.get(path.basename(location)) ?? path.basename(location);
 
-  if (!response.ok) {
-    throw new Error(`Could not load XSD ${url}: ${response.status}`);
+  if (!/^[A-Za-z0-9_.()-]+\.xsd$/.test(fileName)) {
+    throw new Error(`Unsupported FA(3) XSD dependency: ${location}`);
   }
 
-  return response.text();
+  return path.join(schemaDirectory, fileName);
+}
+
+async function loadVendoredSchema(location: string) {
+  const filePath = schemaFileForLocation(location);
+  return readFile(filePath, "utf8").catch((error) => {
+    throw new Error(`Could not load vendored FA(3) XSD ${path.basename(filePath)}: ${error instanceof Error ? error.message : String(error)}`);
+  });
 }
 
 async function loadSchema() {
-  schemaPromise ??= loadText(OFFICIAL_FA3_XSD_URL).then((xsd) =>
-    parseXsdAsync(xsd, async (location) => {
-      try {
-        const url = location.startsWith("http") ? location : new URL(location, OFFICIAL_FA3_XSD_URL).toString();
-        return await loadText(url);
-      } catch {
-        return null;
-      }
-    })
+  schemaPromise ??= loadVendoredSchema(LOCAL_FA3_XSD_FILE).then((xsd) =>
+    parseXsdAsync(xsd, async (location) => loadVendoredSchema(location))
   );
 
   return schemaPromise;
@@ -43,9 +64,10 @@ export function describeSchemaValidation() {
   return {
     schema: "FA(3)",
     officialXsdUrl: OFFICIAL_FA3_XSD_URL,
+    localXsdFile: LOCAL_FA3_XSD_FILE,
     enforced: true,
     reason:
-      "The app validates generated XML against the official CIRFMF FA(3) schema before KSeF submission is enabled."
+      "The app validates generated XML against a vendored copy of the official CIRFMF FA(3) schema before KSeF submission is enabled."
   };
 }
 
@@ -114,8 +136,9 @@ export async function validateFa3XmlAgainstOfficialXsd(xml: string) {
   } catch (error) {
     return {
       valid: false,
-      enforced: false,
+      enforced: true,
       officialXsdUrl: OFFICIAL_FA3_XSD_URL,
+      localXsdFile: LOCAL_FA3_XSD_FILE,
       issueCount: 1,
       issues: [
         {

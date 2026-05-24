@@ -529,6 +529,69 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
   });
 
   if (existing) {
+    const buyerChanged = existing.nip !== buyerNip || existing.buyerName !== buyerName;
+    if (buyerChanged && existing.status === "draft" && !existing.ksefNumber) {
+      const fa3 = orderToFa3(shop, order, buyerNip, buyerName);
+      const validation = validateFa3Input(fa3);
+
+      if (!validation.valid) {
+        throw new Error(validation.errors.join(" "));
+      }
+
+      const fa3Xml = buildFa3Xml(fa3);
+      const invoice = await prisma.$transaction(async (tx) => {
+        await tx.invoiceItem.deleteMany({ where: { invoiceId: existing.id } });
+        return tx.ksefInvoice.update({
+          where: { id: existing.id },
+          data: {
+            nip: buyerNip,
+            buyerName,
+            fa3Xml,
+            totalGross: fa3.amountGross,
+            fa3ValidatedAt: null,
+            fa3ValidationStatus: null,
+            fa3ValidationError: null,
+            lastError: null,
+            items: {
+              create: fa3.lineItems.map((item) => ({
+                name: item.name,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                vatRate: item.vatRate,
+                totalNet: item.totalNet,
+                totalVat: item.totalVat
+              }))
+            }
+          },
+          include: { items: true }
+        });
+      });
+
+      await prisma.orderFlag.upsert({
+        where: { shopId_orderId: { shopId: shop.id, orderId: order.id } },
+        create: {
+          shopId: shop.id,
+          orderId: order.id,
+          orderName: order.name,
+          isB2b: true,
+          nip: buyerNip,
+          buyerName,
+          processedAt: new Date()
+        },
+        update: {
+          orderName: order.name,
+          isB2b: true,
+          nip: buyerNip,
+          buyerName,
+          processedAt: new Date()
+        }
+      });
+
+      await rememberBuyerProfile(shop, order, buyerNip, buyerName, "manual");
+
+      return { invoice, reused: false };
+    }
+
     return { invoice: existing, reused: true };
   }
 
