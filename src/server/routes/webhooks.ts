@@ -11,7 +11,10 @@ function verifyWebhook(rawBody: Buffer, hmacHeader: unknown) {
   if (typeof hmacHeader !== "string") return false;
 
   const digest = crypto.createHmac("sha256", env.SHOPIFY_API_SECRET).update(rawBody).digest("base64");
-  return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(hmacHeader));
+  const expected = Buffer.from(digest);
+  const received = Buffer.from(hmacHeader);
+
+  return expected.length === received.length && crypto.timingSafeEqual(expected, received);
 }
 
 function shopifyOrderGids(payload: Record<string, unknown>) {
@@ -39,6 +42,23 @@ function shopifyOrderGids(payload: Record<string, unknown>) {
   return [...ids];
 }
 
+function shopifyCustomerGid(payload: Record<string, unknown>) {
+  const nestedCustomer = payload.customer && typeof payload.customer === "object"
+    ? (payload.customer as Record<string, unknown>)
+    : null;
+  const customerId = nestedCustomer?.id ?? payload.customer_id ?? payload.id;
+
+  if (typeof customerId === "string" && customerId.startsWith("gid://")) {
+    return customerId;
+  }
+
+  if (typeof customerId === "number" || typeof customerId === "string") {
+    return `gid://shopify/Customer/${customerId}`;
+  }
+
+  return null;
+}
+
 async function markCorrectionNeeded(shopDomain: string, payload: Record<string, unknown>, reason: string) {
   const shop = await prisma.shop.findUnique({ where: { domain: shopDomain } });
   if (!shop) return 0;
@@ -60,7 +80,7 @@ async function markCorrectionNeeded(shopDomain: string, payload: Record<string, 
   });
 
   if (update.count > 0) {
-    await notifyTelegram(`KSeF Pilot — correction needed: ${shopDomain} ${reason} (${update.count} invoice(s))`);
+    await notifyTelegram(`KSeF Pilot - correction needed: ${shopDomain} ${reason} (${update.count} invoice(s))`);
   }
 
   return update.count;
@@ -91,7 +111,32 @@ webhookRouter.post("/shopify", async (req, res, next) => {
           uninstalledAt: new Date()
         }
       });
-      await notifyTelegram(`KSeF Pilot — uninstall: ${shopDomain}`);
+      await notifyTelegram(`KSeF Pilot - uninstall: ${shopDomain}`);
+    }
+
+    if (topic === "customers/data_request") {
+      await notifyTelegram(`KSeF Pilot - Shopify customer data request: ${shopDomain}`);
+    }
+
+    if (topic === "customers/redact") {
+      const customerGid = shopifyCustomerGid(payload);
+      const shop = await prisma.shop.findUnique({ where: { domain: shopDomain } });
+
+      if (shop && customerGid) {
+        await prisma.customerBuyerProfile.deleteMany({
+          where: {
+            shopId: shop.id,
+            customerId: customerGid
+          }
+        });
+      }
+
+      await notifyTelegram(`KSeF Pilot - Shopify customer redact: ${shopDomain}${customerGid ? ` ${customerGid}` : ""}`);
+    }
+
+    if (topic === "shop/redact") {
+      await prisma.shop.deleteMany({ where: { domain: shopDomain } });
+      await notifyTelegram(`KSeF Pilot - Shopify shop redact completed: ${shopDomain}`);
     }
 
     if (topic === "app_subscriptions/update" || topic === "APP_SUBSCRIPTIONS_UPDATE") {
