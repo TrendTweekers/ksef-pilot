@@ -1,4 +1,7 @@
 import PDFDocument from "pdfkit";
+import crypto from "node:crypto";
+import QRCode from "qrcode";
+import { env } from "../config/env.js";
 
 interface PdfInvoiceItem {
   name: string;
@@ -16,6 +19,7 @@ export interface PdfInvoice {
   nip: string;
   status: string;
   ksefNumber: string | null;
+  fa3Xml: string;
   totalGross: { toString(): string } | string | number;
   createdAt: Date;
   items: PdfInvoiceItem[];
@@ -35,9 +39,50 @@ function textOrDash(value: string | null | undefined) {
   return value?.trim() || "-";
 }
 
+function qrHost() {
+  if (env.KSEF_API_BASE_URL?.includes("demo")) return "https://qr-demo.ksef.mf.gov.pl";
+  if (env.KSEF_API_BASE_URL?.includes("test")) return "https://qr-test.ksef.mf.gov.pl";
+
+  if (env.KSEF_ENVIRONMENT === "PROD") return "https://qr.ksef.mf.gov.pl";
+  if (env.KSEF_ENVIRONMENT === "DEMO") return "https://qr-demo.ksef.mf.gov.pl";
+  return "https://qr-test.ksef.mf.gov.pl";
+}
+
+function formatQrIssueDate(value: string | null, fallback: Date) {
+  const source = value?.trim() || fallback.toISOString().slice(0, 10);
+  const match = source.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (match) {
+    return `${match[3]}-${match[2]}-${match[1]}`;
+  }
+
+  return fallback.toISOString().slice(0, 10).split("-").reverse().join("-");
+}
+
+function issueDateFromXml(xml: string) {
+  return xml.match(/<(?:\w+:)?P_1>([^<]+)<\/(?:\w+:)?P_1>/)?.[1] ?? null;
+}
+
+export function buildKsefInvoiceVerificationUrl(invoice: PdfInvoice) {
+  const sellerNip = invoice.shop.sellerNip?.replace(/\D/g, "");
+
+  if (!invoice.ksefNumber || !sellerNip || !invoice.fa3Xml) {
+    return null;
+  }
+
+  const issueDate = formatQrIssueDate(issueDateFromXml(invoice.fa3Xml), invoice.createdAt);
+  const invoiceHash = crypto.createHash("sha256").update(invoice.fa3Xml, "utf8").digest("base64url");
+
+  return `${qrHost()}/invoice/${sellerNip}/${issueDate}/${invoiceHash}`;
+}
+
 export async function buildInvoicePdf(invoice: PdfInvoice) {
   const doc = new PDFDocument({ size: "A4", margin: 48 });
   const chunks: Buffer[] = [];
+  const verificationUrl = buildKsefInvoiceVerificationUrl(invoice);
+  const qrPng = verificationUrl
+    ? await QRCode.toBuffer(verificationUrl, { errorCorrectionLevel: "M", margin: 1, width: 140 })
+    : null;
 
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
@@ -46,15 +91,27 @@ export async function buildInvoicePdf(invoice: PdfInvoice) {
     doc.on("error", reject);
   });
 
-  doc.font("Helvetica-Bold").fontSize(20).text("KSeF Pilot draft invoice", { align: "left" });
+  doc.font("Helvetica-Bold").fontSize(20).text("KSeF Pilot draft invoice", { align: "left", width: qrPng ? 340 : 500 });
   doc.moveDown(0.25);
-  doc.font("Helvetica").fontSize(10).fillColor("#6b7280").text("Draft preview generated from Shopify order data. The XML remains the legal KSeF payload.");
+  doc.font("Helvetica").fontSize(10).fillColor("#6b7280").text("Draft preview generated from Shopify order data. The XML remains the legal KSeF payload.", {
+    width: qrPng ? 340 : 500
+  });
+  if (qrPng) {
+    doc.image(qrPng, 440, 48, { width: 82 });
+    doc.fillColor("#101729").font("Helvetica-Bold").fontSize(7).text(invoice.ksefNumber ?? "", 405, 134, {
+      width: 150,
+      align: "center"
+    });
+  }
   doc.moveDown(1.2);
 
   doc.fillColor("#101729").font("Helvetica-Bold").fontSize(13).text(`Order ${invoice.orderName}`);
   doc.font("Helvetica").fontSize(10).text(`Status: ${invoice.status}`);
   doc.text(`Created: ${invoice.createdAt.toISOString().slice(0, 10)}`);
   doc.text(`KSeF number: ${textOrDash(invoice.ksefNumber)}`);
+  if (verificationUrl) {
+    doc.text(`Verification link: ${verificationUrl}`, { width: 500 });
+  }
   doc.moveDown();
 
   const leftX = doc.x;
