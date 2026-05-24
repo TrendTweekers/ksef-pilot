@@ -21,6 +21,7 @@ const envSchema = z.object({
   SHOPIFY_APP_HANDLE: z.string().min(1).default("ksef-pilot"),
   SHOPIFY_MANAGED_PRICING_URL_TEMPLATE: z.string().optional(),
   SHOPIFY_REVIEW_URL: z.string().url().optional(),
+  SUPPORT_EMAIL: z.string().email().default("support@fakturaflow.pl"),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
   RESEND_API_KEY: z.string().optional()

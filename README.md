@@ -84,6 +84,18 @@ The app requests the minimal MVP scopes:
 read_orders,read_customers,read_products
 ```
 
+## App Store URLs
+
+The Railway app serves basic listing/support URLs:
+
+```text
+${APP_URL}/privacy
+${APP_URL}/terms
+${APP_URL}/support
+```
+
+Set `SUPPORT_EMAIL` in Railway before App Store submission. Defaults to `support@fakturaflow.pl`.
+
 ## Safe Dev Store Testing
 
 You can test the current MVP without sending anything real to KSeF:

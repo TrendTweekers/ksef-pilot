@@ -9,6 +9,7 @@ import { env } from "./config/env.js";
 import { authRouter } from "./routes/auth.js";
 import { apiRouter } from "./routes/api.js";
 import { webhookRouter } from "./routes/webhooks.js";
+import { legalRouter } from "./routes/legal.js";
 import { startKsefWorker } from "./services/ksefWorker.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -36,6 +37,7 @@ app.use(express.json({ limit: "1mb" }));
 
 app.use("/auth", authRouter);
 app.use("/api", apiRouter);
+app.use(legalRouter);
 
 if (env.NODE_ENV === "production") {
   const webRoot = path.resolve(__dirname, "../web");
