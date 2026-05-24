@@ -159,6 +159,47 @@ body {
   font-weight: 700;
 }
 
+.token-guide {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--ff-border);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(218, 27, 45, 0.06), transparent 34%),
+    #fffdfa;
+}
+
+.token-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.token-guide-step {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 10px;
+  min-height: 116px;
+  padding: 12px;
+  border: 1px solid var(--ff-border);
+  border-radius: 8px;
+  background: var(--ff-card);
+}
+
+.token-guide-step > span {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid var(--ff-border);
+  border-radius: 50%;
+  color: var(--ff-red);
+  background: var(--ff-red-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .token-status {
   display: grid;
   grid-template-columns: 12px 1fr;
@@ -457,6 +498,7 @@ body {
   .stat-grid,
   .settings-grid,
   .onboarding-steps,
+  .token-guide-grid,
   .readiness-grid,
   .invoice-flow,
   .queue-summary,

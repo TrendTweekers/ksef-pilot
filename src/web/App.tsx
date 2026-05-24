@@ -282,6 +282,10 @@ export function App() {
     window.open(`/auth?shop=${encodeURIComponent(shop)}`, "_top");
   }
 
+  function openKsefPortal() {
+    window.open("https://ksef.podatki.gov.pl", "_blank", "noopener,noreferrer");
+  }
+
   async function loadSettings() {
     if (!shop) return;
 
@@ -1127,6 +1131,34 @@ export function App() {
                               {t("settings.onboardingLiveBody")}
                             </Text>
                           </div>
+                        </div>
+                      </div>
+                      <div className="token-guide">
+                        <InlineStack align="space-between" blockAlign="start" gap="300">
+                          <BlockStack gap="100">
+                            <Text as="h3" variant="headingMd">
+                              {t("settings.tokenGuideTitle")}
+                            </Text>
+                            <Text as="p" tone="subdued">
+                              {t("settings.tokenGuideBody")}
+                            </Text>
+                          </BlockStack>
+                          <Button onClick={openKsefPortal}>{t("settings.openKsefPortal")}</Button>
+                        </InlineStack>
+                        <div className="token-guide-grid">
+                          {["nip", "portal", "paste", "live"].map((step, index) => (
+                            <div className="token-guide-step" key={step}>
+                              <span>{index + 1}</span>
+                              <BlockStack gap="100">
+                                <Text as="h4" variant="headingSm">
+                                  {t(`settings.tokenGuide.${step}.title`)}
+                                </Text>
+                                <Text as="p" tone="subdued">
+                                  {t(`settings.tokenGuide.${step}.body`)}
+                                </Text>
+                              </BlockStack>
+                            </div>
+                          ))}
                         </div>
                       </div>
                       <Checkbox

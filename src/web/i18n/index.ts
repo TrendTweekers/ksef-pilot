@@ -107,6 +107,28 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           onboardingTokenBody: "Token musi być utworzony dla tego samego NIP sprzedawcy. Zapisujemy go dopiero po udanym teście połączenia.",
           onboardingLiveTitle: "Przejdź na live dopiero na końcu",
           onboardingLiveBody: "Najpierw twórz szkice i waliduj FA(3). Tryb live włącz dopiero, gdy token, serwer i faktury są gotowe.",
+          tokenGuideTitle: "Jak przygotować token KSeF",
+          tokenGuideBody:
+            "Najpierw zapisz dane sprzedawcy i pracuj na szkicach. Token wklej dopiero wtedy, gdy sklep ma zacząć testować połączenie z KSeF.",
+          openKsefPortal: "Otwórz portal KSeF",
+          tokenGuide: {
+            nip: {
+              title: "Sprawdź NIP sprzedawcy",
+              body: "Token musi dotyczyć tej samej firmy, której NIP wpisujesz w danych sprzedawcy."
+            },
+            portal: {
+              title: "Wygeneruj token w KSeF",
+              body: "Zaloguj się do portalu KSeF i utwórz token API z uprawnieniami do wystawiania faktur."
+            },
+            paste: {
+              title: "Wklej i przetestuj",
+              body: "KSeF Pilot zapisuje token dopiero po udanym teście połączenia. Token jest szyfrowany w bazie."
+            },
+            live: {
+              title: "Live dopiero po walidacji",
+              body: "Wyłącz tryb testowy po utworzeniu szkiców, walidacji FA(3) i sprawdzeniu kolejki KSeF."
+            }
+          },
           tokenLabel: "Token API KSeF",
           tokenHelp: "Wklej token wygenerowany na ksef.podatki.gov.pl. Przechowujemy go w formie szyfrowanej.",
           tokenSkip: "Podczas testów zostaw to pole puste. Generowanie szkicu faktury nie wymaga tokenu KSeF.",
@@ -437,6 +459,28 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           onboardingTokenBody: "The token must be created for the same seller NIP. It is only saved after a successful connection test.",
           onboardingLiveTitle: "Switch to live last",
           onboardingLiveBody: "Create drafts and validate FA(3) first. Turn live on only when the token, server, and invoices are ready.",
+          tokenGuideTitle: "How to prepare a KSeF token",
+          tokenGuideBody:
+            "Save seller details first and work with drafts. Paste a token only when the shop is ready to test the KSeF connection.",
+          openKsefPortal: "Open KSeF portal",
+          tokenGuide: {
+            nip: {
+              title: "Check the seller NIP",
+              body: "The token must belong to the same company as the seller NIP saved in this app."
+            },
+            portal: {
+              title: "Generate the token in KSeF",
+              body: "Sign in to the KSeF portal and create an API token with invoice issuing permissions."
+            },
+            paste: {
+              title: "Paste and test",
+              body: "KSeF Pilot saves the token only after a successful connection test. The token is encrypted in the database."
+            },
+            live: {
+              title: "Go live after validation",
+              body: "Turn test mode off after creating drafts, validating FA(3), and checking the KSeF queue."
+            }
+          },
           tokenLabel: "KSeF API token",
           tokenHelp: "Paste the token generated at ksef.podatki.gov.pl. It is encrypted before storage.",
           tokenSkip: "Leave this empty while testing. Draft invoice generation does not require a KSeF token.",
