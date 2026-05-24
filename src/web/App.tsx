@@ -233,6 +233,7 @@ export function App() {
   const [ksefReadiness, setKsefReadiness] = useState<KsefReadiness | null>(null);
   const [settingsMessage, setSettingsMessage] = useState("");
   const [settingsError, setSettingsError] = useState("");
+  const [liveSubmissionAcknowledged, setLiveSubmissionAcknowledged] = useState(false);
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [onlyUnprocessedB2b, setOnlyUnprocessedB2b] = useState(false);
@@ -461,6 +462,7 @@ export function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token: includeToken ? token || undefined : undefined,
+          liveSubmissionAcknowledged,
           ...settings
         })
       });
@@ -483,6 +485,9 @@ export function App() {
       setConnectionState(result.connected ? "connected" : "unknown");
       if (includeToken && result.connected) {
         setToken("");
+      }
+      if (result.ksefTestMode) {
+        setLiveSubmissionAcknowledged(false);
       }
       setSettingsMessage(t(result.connected ? "settings.connectedSaved" : "settings.saved"));
       if (result.tokenTestError) {
@@ -898,6 +903,7 @@ export function App() {
       : "status-dot";
   const ksefBadgeTone: "success" | "attention" = ksefReadiness?.canLiveSubmit ? "success" : "attention";
   const liveSubmissionBlocked = !settings.ksefTestMode && !ksefReadiness?.canLiveSubmit;
+  const liveSettingsSaveBlocked = !settings.ksefTestMode && !liveSubmissionAcknowledged;
   const validationRequiredCount = invoices.filter((invoice) => invoice.fa3ValidationStatus !== "valid" && !invoice.ksefNumber).length;
   const readinessItems = ksefReadiness
     ? [
@@ -1126,9 +1132,26 @@ export function App() {
                       <Checkbox
                         label={t("settings.testMode")}
                         checked={settings.ksefTestMode}
-                        onChange={(ksefTestMode) => setSettings((current) => ({ ...current, ksefTestMode }))}
+                        onChange={(ksefTestMode) => {
+                          setSettings((current) => ({ ...current, ksefTestMode }));
+                          if (ksefTestMode) {
+                            setLiveSubmissionAcknowledged(false);
+                          }
+                        }}
                         helpText={t("settings.testModeHelp")}
                       />
+                      {!settings.ksefTestMode ? (
+                        <Banner tone="warning">
+                          <BlockStack gap="200">
+                            <Text as="p">{t("settings.liveAckBanner")}</Text>
+                            <Checkbox
+                              label={t("settings.liveAck")}
+                              checked={liveSubmissionAcknowledged}
+                              onChange={setLiveSubmissionAcknowledged}
+                            />
+                          </BlockStack>
+                        </Banner>
+                      ) : null}
                       {!settings.ksefTestMode && !ksefReadiness?.liveSubmissionEnabled ? (
                         <Banner tone="warning">{t("settings.liveServerDisabledBanner")}</Banner>
                       ) : null}
@@ -1248,10 +1271,10 @@ export function App() {
                         </div>
                       </div>
                       <InlineStack gap="200">
-                        <Button variant="primary" loading={saving} disabled={!shop} onClick={() => saveSettings(false)}>
+                        <Button variant="primary" loading={saving} disabled={!shop || liveSettingsSaveBlocked} onClick={() => saveSettings(false)}>
                           {t("settings.save")}
                         </Button>
-                        <Button disabled={!token || !shop || !settings.sellerNip} onClick={() => saveSettings(true)}>
+                        <Button disabled={!token || !shop || !settings.sellerNip || liveSettingsSaveBlocked} onClick={() => saveSettings(true)}>
                           {t("settings.saveAndTest")}
                         </Button>
                       </InlineStack>

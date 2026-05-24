@@ -29,7 +29,8 @@ const ksefSettingsSchema = z.object({
   sellerName: z.string().optional(),
   sellerAddress: z.string().optional(),
   placeOfIssue: z.string().optional(),
-  ksefTestMode: z.boolean().optional()
+  ksefTestMode: z.boolean().optional(),
+  liveSubmissionAcknowledged: z.boolean().optional()
 });
 
 const orderFlagSchema = z.object({
@@ -251,6 +252,8 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
     const sellerNip = input.sellerNip?.replace(/\D/g, "") || shop.sellerNip;
     const testResult = encryptedToken ? await testKsefToken(encryptedToken, sellerNip) : null;
     const sellerNipChanged = Boolean(sellerNip && shop.sellerNip && sellerNip !== shop.sellerNip);
+    const nextKsefConnected = encryptedToken ? Boolean(testResult?.connected) : sellerNipChanged ? false : shop.ksefConnected;
+    const wantsLiveMode = input.ksefTestMode === false;
 
     if (encryptedToken && !testResult?.connected) {
       res.status(400).json({
@@ -267,6 +270,36 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
         readiness: buildKsefReadiness(shop)
       });
       return;
+    }
+
+    if (wantsLiveMode) {
+      const liveIssues: string[] = [];
+
+      if (!env.KSEF_LIVE_SUBMISSION_ENABLED) liveIssues.push("server live submission is disabled");
+      if (!shop.ksefToken && !encryptedToken) liveIssues.push("KSeF token is missing");
+      if (!nextKsefConnected) liveIssues.push("KSeF token has not passed connection test");
+      if (!sellerNip) liveIssues.push("seller NIP is missing");
+      if (!input.liveSubmissionAcknowledged) liveIssues.push("live submission acknowledgement is required");
+
+      if (liveIssues.length) {
+        res.status(400).json({
+          error: `Live KSeF mode cannot be enabled yet: ${liveIssues.join(", ")}.`,
+          connected: nextKsefConnected,
+          hasToken: Boolean(shop.ksefToken || encryptedToken),
+          sellerNip: sellerNip ?? "",
+          sellerName: input.sellerName?.trim() || shop.sellerName || "",
+          sellerAddress: input.sellerAddress?.trim() || shop.sellerAddress || "",
+          placeOfIssue: input.placeOfIssue?.trim() || shop.placeOfIssue || "",
+          ksefTestMode: shop.ksefTestMode,
+          readiness: buildKsefReadiness({
+            ...shop,
+            sellerNip: sellerNip ?? null,
+            ksefToken: encryptedToken ?? shop.ksefToken,
+            ksefConnected: nextKsefConnected
+          })
+        });
+        return;
+      }
     }
 
     const updated = await prisma.shop.update({

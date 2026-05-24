@@ -121,6 +121,9 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           testMode: "Tryb testowy KSeF",
           testModeHelp:
             "Włączone: przycisk wysyłki tworzy lokalny numer testowy i nie wysyła nic do KSeF. Wyłącz dopiero po podłączeniu prawdziwego tokenu.",
+          liveAckBanner:
+            "Wyłączenie trybu testowego odblokowuje prawdziwą ścieżkę KSeF. Serwer nadal zablokuje wysyłkę, jeśli token, NIP lub konfiguracja Railway nie są gotowe.",
+          liveAck: "Rozumiem, że po zapisaniu trybu live zwalidowane faktury mogą zostać wysłane do KSeF.",
           sellerNip: "NIP sprzedawcy",
           sellerNipHelp: "Do testów możesz wpisać dowolne 10 cyfr, na przykład 1234567890.",
           sellerName: "Nazwa prawna sprzedawcy",
@@ -447,6 +450,9 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           testMode: "KSeF test mode",
           testModeHelp:
             "On: submit creates a local test number and sends nothing to KSeF. Turn it off only after connecting a real token.",
+          liveAckBanner:
+            "Turning test mode off unlocks the real KSeF path. The server will still block submission if the token, seller NIP, or Railway config is not ready.",
+          liveAck: "I understand that after saving live mode, validated invoices may be submitted to KSeF.",
           sellerNip: "Seller NIP",
           sellerNipHelp: "For dev testing you can use any 10 digits, for example 1234567890.",
           sellerName: "Seller legal name",
