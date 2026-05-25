@@ -32,7 +32,7 @@ This scaffold starts the MVP with:
 - Embedded Polaris admin shell with Orders, Settings, and Billing views
 - Railway deployment config
 
-The next implementation slices are production token validation hardening, partial correction workflows, and final App Store polish.
+The next implementation slices are App Store polish, deeper self-serve KSeF onboarding, and production monitoring refinements.
 
 ## Setup
 

@@ -174,7 +174,7 @@ function invoiceManifestRows(invoices: Array<{
 
 function invoiceManifestCsv(invoices: Parameters<typeof invoiceManifestRows>[0]) {
   const rows = invoiceManifestRows(invoices);
-  const headers = ["order", "buyer", "nip", "gross_pln", "status", "correction_of", "ksef_number", "created_at", "xml_file"];
+  const headers = ["order", "buyer", "nip", "currency", "gross", "gross_pln", "status", "correction_of", "ksef_number", "created_at", "xml_file"];
   return [
     headers.map(csvCell).join(","),
     ...rows.map((row) => headers.map((header) => csvCell(row[header as keyof typeof row])).join(","))
@@ -1359,12 +1359,13 @@ apiRouter.post("/invoices/:invoiceId/correction", loadShop, async (req, res, nex
         status: result.invoice.status,
         correctionOf: result.invoice.correctionOf,
         totalGross: result.invoice.totalGross,
+        currency: result.invoice.currency,
         createdAt: result.invoice.createdAt
       }
     });
 
     await notifyTelegram(
-      `KSeF Pilot correction draft: ${shop.domain} ${result.invoice.orderName} ${result.invoice.totalGross} PLN`
+      `KSeF Pilot correction draft: ${shop.domain} ${result.invoice.orderName} ${result.invoice.totalGross} ${result.invoice.currency}`
     );
   } catch (error) {
     if (error instanceof Error) {
@@ -1471,13 +1472,14 @@ apiRouter.post("/invoices/:invoiceId/email", loadShop, async (req, res, next) =>
     const safeOrderName = escapeHtml(invoice.orderName);
     const safeBuyerName = escapeHtml(invoice.buyerName);
     const safeNip = escapeHtml(invoice.nip);
-    const safeGross = escapeHtml(invoice.totalGross.toString());
+    const invoiceCurrency = invoice.currency || "PLN";
+    const safeGross = escapeHtml(`${invoice.totalGross.toString()} ${invoiceCurrency}`);
     const safeKsefNumber = escapeHtml(invoice.ksefNumber ?? "not assigned yet");
     const text = [
       `KSeF Pilot invoice packet for ${invoice.orderName}.`,
       `Buyer: ${invoice.buyerName}`,
       `NIP: ${invoice.nip}`,
-      `Gross: ${invoice.totalGross.toString()} PLN`,
+      `Gross: ${invoice.totalGross.toString()} ${invoiceCurrency}`,
       invoice.ksefNumber ? `KSeF number: ${invoice.ksefNumber}` : "KSeF number: not assigned yet",
       "",
       "Attached: FA(3) XML and PDF preview."
@@ -1488,7 +1490,7 @@ apiRouter.post("/invoices/:invoiceId/email", loadShop, async (req, res, next) =>
       subject,
       text,
       html: `<p>KSeF Pilot invoice packet for <strong>${safeOrderName}</strong>.</p>
-<p>Buyer: ${safeBuyerName}<br/>NIP: ${safeNip}<br/>Gross: ${safeGross} PLN<br/>KSeF number: ${safeKsefNumber}</p>
+<p>Buyer: ${safeBuyerName}<br/>NIP: ${safeNip}<br/>Gross: ${safeGross}<br/>KSeF number: ${safeKsefNumber}</p>
 <p>Attached: FA(3) XML and PDF preview.</p>`,
       attachments: [
         {

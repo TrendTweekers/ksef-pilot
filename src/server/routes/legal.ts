@@ -51,7 +51,7 @@ legalRouter.get("/terms", (_req, res) => {
     <h1>Terms of Service</h1>
     <p>KSeF Pilot helps Shopify merchants prepare Polish B2B e-invoices for KSeF. Merchants remain responsible for reviewing invoice data, tax treatment, KSeF credentials, and legal compliance before live submission.</p>
     <h2>MVP limitations</h2>
-    <p>Phase 1 supports PLN invoices with standard 23% VAT only. Orders with unsupported currency, exempt tax lines, or other VAT rates are blocked and must be handled manually until support is added.</p>
+    <p>Phase 1 supports domestic B2B invoices with 23%, 8%, and 5% VAT rates. PLN invoices are generated directly. Foreign-currency domestic invoices use cached NBP Table A rates and include VAT-in-PLN FA(3) fields. Orders with 0%, exempt, WDT/export, reverse charge, split payment, OSS, or unsupported tax treatment are blocked and must be handled manually until support is added.</p>
     <h2>Billing</h2>
     <p>Subscription changes are handled by Shopify Managed Pricing. The app reads the active Shopify plan to apply invoice limits.</p>
     <h2>Support</h2>

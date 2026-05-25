@@ -20,7 +20,12 @@ export interface PdfInvoice {
   status: string;
   ksefNumber: string | null;
   fa3Xml: string;
+  currency: string;
+  exchangeRate: { toString(): string } | string | number | null;
+  exchangeRateDate: Date | null;
+  exchangeRateTableNo: string | null;
   totalGross: { toString(): string } | string | number;
+  totalGrossPln: { toString(): string } | string | number | null;
   createdAt: Date;
   items: PdfInvoiceItem[];
   shop: {
@@ -31,8 +36,8 @@ export interface PdfInvoice {
   };
 }
 
-function money(value: { toString(): string } | string | number) {
-  return `${Number(value.toString()).toFixed(2)} PLN`;
+function money(value: { toString(): string } | string | number, currency = "PLN") {
+  return `${Number(value.toString()).toFixed(2)} ${currency}`;
 }
 
 function textOrDash(value: string | null | undefined) {
@@ -93,6 +98,7 @@ export async function buildInvoicePdf(invoice: PdfInvoice) {
   const doc = new PDFDocument({ size: "A4", margin: 48 });
   const chunks: Buffer[] = [];
   const verificationUrl = buildKsefInvoiceVerificationUrl(invoice);
+  const currency = invoice.currency || "PLN";
   const qrPng = verificationUrl
     ? await QRCode.toBuffer(verificationUrl, { errorCorrectionLevel: "M", margin: 1, width: 140 })
     : null;
@@ -195,19 +201,28 @@ export async function buildInvoicePdf(invoice: PdfInvoice) {
     doc.fillColor("#101729");
     doc.text(item.name, columns.name, y, { width: 200 });
     doc.text(String(item.quantity), columns.qty, y, { width: 34, align: "right" });
-    doc.text(money(item.totalNet), columns.net, y, { width: 58, align: "right" });
-    doc.text(`${money(item.totalVat)} (${item.vatRate}%)`, columns.vat, y, { width: 64, align: "right" });
-    doc.text(money(Number(item.totalNet.toString()) + Number(item.totalVat.toString())), columns.gross, y, { width: 60, align: "right" });
+    doc.text(money(item.totalNet, currency), columns.net, y, { width: 58, align: "right" });
+    doc.text(`${money(item.totalVat, currency)} (${item.vatRate}%)`, columns.vat, y, { width: 64, align: "right" });
+    doc.text(money(Number(item.totalNet.toString()) + Number(item.totalVat.toString()), currency), columns.gross, y, { width: 60, align: "right" });
     y += 30;
   });
 
   y += 8;
-  doc.roundedRect(330, y, 218, 46, 7).fill("#fff8ef").strokeColor("#eadfca").stroke();
+  const summaryHeight = currency === "PLN" ? 46 : 68;
+  doc.roundedRect(330, y, 218, summaryHeight, 7).fill("#fff8ef").strokeColor("#eadfca").stroke();
   doc.fillColor("#6b5b4a").font("Helvetica-Bold").fontSize(8).text("TOTAL GROSS", 348, y + 11, { width: 80 });
-  doc.fillColor("#101729").font("Helvetica-Bold").fontSize(15).text(money(invoice.totalGross), 430, y + 9, {
+  doc.fillColor("#101729").font("Helvetica-Bold").fontSize(15).text(money(invoice.totalGross, currency), 430, y + 9, {
     width: 100,
     align: "right"
   });
+  if (currency !== "PLN") {
+    doc.fillColor("#6b5b4a").font("Helvetica").fontSize(7).text(
+      `VAT converted to PLN for FA(3) using NBP ${textOrDash(invoice.exchangeRateTableNo)} from ${invoice.exchangeRateDate?.toISOString().slice(0, 10) ?? "-"}. Gross PLN: ${money(invoice.totalGrossPln ?? invoice.totalGross, "PLN")}`,
+      348,
+      y + 34,
+      { width: 180, align: "right" }
+    );
+  }
 
   doc.font("Helvetica").fontSize(8).fillColor("#6b5b4a");
   doc.text("KSeF Pilot by FakturaFlow. Review the FA(3) XML before live KSeF submission. The app reads Shopify orders and never modifies them.", 48, 760, {
