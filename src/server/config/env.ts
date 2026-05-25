@@ -1,6 +1,9 @@
 import "dotenv/config";
 import { z } from "zod";
 
+const optionalUrl = z.preprocess((value) => (value === "" ? undefined : value), z.string().url().optional());
+const optionalString = z.preprocess((value) => (value === "" ? undefined : value), z.string().optional());
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(3000),
@@ -12,19 +15,19 @@ const envSchema = z.object({
   SHOPIFY_ORDER_SCAN_LIMIT: z.coerce.number().int().min(25).max(500).default(250),
   ENCRYPTION_KEY: z.string().min(32),
   KSEF_ENVIRONMENT: z.enum(["TEST", "DEMO", "PROD"]).default("TEST"),
-  KSEF_API_BASE_URL: z.string().url().optional(),
+  KSEF_API_BASE_URL: optionalUrl,
   KSEF_LIVE_SUBMISSION_ENABLED: z.coerce.boolean().default(false),
-  KSEF_WORKER_SECRET: z.string().optional(),
+  KSEF_WORKER_SECRET: optionalString,
   KSEF_WORKER_AUTORUN: z.coerce.boolean().default(false),
   KSEF_WORKER_INTERVAL_SECONDS: z.coerce.number().int().min(60).default(300),
   KSEF_WORKER_BATCH_LIMIT: z.coerce.number().int().min(1).max(50).default(10),
   SHOPIFY_APP_HANDLE: z.string().min(1).default("ksef-pilot"),
-  SHOPIFY_MANAGED_PRICING_URL_TEMPLATE: z.string().optional(),
-  SHOPIFY_REVIEW_URL: z.string().url().optional(),
+  SHOPIFY_MANAGED_PRICING_URL_TEMPLATE: optionalString,
+  SHOPIFY_REVIEW_URL: optionalUrl,
   SUPPORT_EMAIL: z.string().email().default("support@fakturaflow.pl"),
-  TELEGRAM_BOT_TOKEN: z.string().optional(),
-  TELEGRAM_CHAT_ID: z.string().optional(),
-  RESEND_API_KEY: z.string().optional(),
+  TELEGRAM_BOT_TOKEN: optionalString,
+  TELEGRAM_CHAT_ID: optionalString,
+  RESEND_API_KEY: optionalString,
   RESEND_FROM_EMAIL: z.string().default("KSeF Pilot <support@fakturaflow.pl>")
 });
 
