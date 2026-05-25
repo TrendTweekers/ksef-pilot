@@ -48,7 +48,20 @@ async function registerWebhook(shop: Shop, topic: CoreWebhookTopic) {
 }
 
 export async function registerCoreWebhooks(shop: Shop) {
+  let installedTopics = new Set<string>();
+
+  try {
+    const status = await listCoreWebhookStatus(shop);
+    installedTopics = new Set(status.filter((entry) => entry.installed).map((entry) => entry.topic));
+  } catch (error) {
+    console.warn(`Could not list existing webhooks for ${shop.domain}; attempting registration anyway`, error);
+  }
+
   for (const topic of coreWebhookTopics) {
+    if (installedTopics.has(topic)) {
+      continue;
+    }
+
     try {
       await registerWebhook(shop, topic);
     } catch (error) {
