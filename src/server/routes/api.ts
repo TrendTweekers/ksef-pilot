@@ -13,7 +13,7 @@ import {
 } from "../services/ksef.js";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
-import { billingPlans, getBillingSummary, reconcileBillingPlans } from "../services/billing.js";
+import { billingPlans, cancelAppSubscription, createAppSubscription, getBillingSummary, reconcileBillingPlans } from "../services/billing.js";
 import { buildFa3Xml, buildSampleFa3Invoice, validateFa3Input } from "../services/fa3.js";
 import { describeSchemaValidation, validateFa3XmlAgainstOfficialXsd } from "../services/fa3Schema.js";
 import { fetchShopifyOrders, generateCorrectionForInvoice, generateDraftInvoiceForOrder, saveOrderFlag } from "../services/orders.js";
@@ -843,6 +843,46 @@ apiRouter.get("/billing", loadShop, async (_req, res, next) => {
       plans: billingPlans
     });
   } catch (error) {
+    next(error);
+  }
+});
+
+const subscribeSchema = z.object({
+  plan: z.enum(["basic", "pro", "unlimited"])
+});
+
+apiRouter.post("/billing/subscribe", loadShop, async (req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const input = subscribeSchema.parse(req.body ?? {});
+    const result = await createAppSubscription(shop, input.plan);
+    res.json(result);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: "Choose a valid paid plan." });
+      return;
+    }
+
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
+    next(error);
+  }
+});
+
+apiRouter.post("/billing/cancel", loadShop, async (_req, res, next) => {
+  try {
+    const shop = res.locals.shop!;
+    const result = await cancelAppSubscription(shop);
+    res.json({ plan: result.nextPlan, status: result.status });
+  } catch (error) {
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
     next(error);
   }
 });

@@ -74,6 +74,154 @@ export function managedPricingUrl(shop: Shop) {
   return `https://admin.shopify.com/store/${storeHandle}/charges/${env.SHOPIFY_APP_HANDLE}/pricing_plans`;
 }
 
+const shopPlanQuery = `#graphql
+  query KsefPilotShopPlan {
+    shop {
+      plan {
+        partnerDevelopment
+      }
+    }
+  }
+`;
+
+// Charges on development/partner stores must be test charges; real stores get live charges.
+async function isDevelopmentStore(shop: Shop) {
+  try {
+    const data = await shopifyGraphql<{ shop: { plan: { partnerDevelopment: boolean } } }>(
+      shop.domain,
+      shop.accessToken,
+      shopPlanQuery
+    );
+    return Boolean(data.shop?.plan?.partnerDevelopment);
+  } catch {
+    return false;
+  }
+}
+
+const appSubscriptionCreateMutation = `#graphql
+  mutation KsefPilotAppSubscriptionCreate(
+    $name: String!
+    $returnUrl: URL!
+    $test: Boolean!
+    $amount: Decimal!
+    $currencyCode: CurrencyCode!
+    $interval: AppPricingInterval!
+  ) {
+    appSubscriptionCreate(
+      name: $name
+      returnUrl: $returnUrl
+      test: $test
+      lineItems: [
+        {
+          plan: {
+            appRecurringPricingDetails: {
+              price: { amount: $amount, currencyCode: $currencyCode }
+              interval: $interval
+            }
+          }
+        }
+      ]
+    ) {
+      confirmationUrl
+      appSubscription {
+        id
+        status
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+interface AppSubscriptionCreateResponse {
+  appSubscriptionCreate: {
+    confirmationUrl: string | null;
+    appSubscription: { id: string; status: string } | null;
+    userErrors: Array<{ field: string[] | null; message: string }>;
+  };
+}
+
+export async function createAppSubscription(shop: Shop, planHandle: BillingPlanHandle) {
+  const plan = billingPlans[planHandle];
+
+  if (planHandle === "free" || plan.price <= 0) {
+    throw new Error("Choose a paid plan to start a subscription.");
+  }
+
+  const storeHandle = shopAdminHandle(shop.domain);
+  const returnUrl = `https://admin.shopify.com/store/${storeHandle}/apps/${env.SHOPIFY_APP_HANDLE}`;
+  const test = await isDevelopmentStore(shop);
+
+  const data = await shopifyGraphql<AppSubscriptionCreateResponse>(
+    shop.domain,
+    shop.accessToken,
+    appSubscriptionCreateMutation,
+    {
+      name: `KSeF Pilot ${plan.name}`,
+      returnUrl,
+      test,
+      amount: plan.price.toFixed(2),
+      currencyCode: "USD",
+      interval: "EVERY_30_DAYS"
+    }
+  );
+
+  const result = data.appSubscriptionCreate;
+
+  if (result.userErrors.length) {
+    throw new Error(result.userErrors.map((error) => error.message).join(" "));
+  }
+
+  if (!result.confirmationUrl) {
+    throw new Error("Shopify did not return a billing confirmation URL.");
+  }
+
+  return { confirmationUrl: result.confirmationUrl, test };
+}
+
+const appSubscriptionCancelMutation = `#graphql
+  mutation KsefPilotAppSubscriptionCancel($id: ID!) {
+    appSubscriptionCancel(id: $id) {
+      appSubscription {
+        id
+        status
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+interface AppSubscriptionCancelResponse {
+  appSubscriptionCancel: {
+    appSubscription: { id: string; status: string } | null;
+    userErrors: Array<{ field: string[] | null; message: string }>;
+  };
+}
+
+export async function cancelAppSubscription(shop: Shop) {
+  if (shop.billingSubscriptionId) {
+    const data = await shopifyGraphql<AppSubscriptionCancelResponse>(
+      shop.domain,
+      shop.accessToken,
+      appSubscriptionCancelMutation,
+      { id: shop.billingSubscriptionId }
+    );
+
+    const result = data.appSubscriptionCancel;
+
+    if (result.userErrors.length) {
+      throw new Error(result.userErrors.map((error) => error.message).join(" "));
+    }
+  }
+
+  return reconcileShopBillingPlan(shop);
+}
+
 export async function getBillingSummary(shop: Shop) {
   const storedPlan = normalizePlan(shop.plan);
   const planHandle = effectivePlan(shop);

@@ -374,20 +374,19 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
         },
         billing: {
           title: "Rozliczenia",
-          description: "Wybierz lub zmień plan na stronie rozliczeń Shopify.",
+          description: "Wybierz lub zmień plan. Płatność zatwierdzasz bezpiecznie w panelu Shopify.",
           managed:
-            "Shopify obsługuje zmianę planu i zatwierdzenie płatności na stronie Shopify App Pricing. KSeF Pilot tylko odczytuje aktywny plan i limity.",
-          pricing404Help:
-            "Jeśli strona Shopify zwróci 404, sprawdź w Partner Dashboard, czy włączono Shopify Managed Pricing, utworzono plany i czy zmienna SHOPIFY_APP_HANDLE zgadza się z handlem aplikacji.",
+            "Płatności obsługuje Shopify. Po wyborze planu przejdziesz do panelu Shopify, aby zatwierdzić obciążenie. KSeF Pilot odczytuje aktywny plan i limity.",
           inactivePaidPlan:
             "Poprzedni płatny plan nie jest aktywny w Shopify, dlatego obowiązuje limit planu Free do czasu zatwierdzenia płatności.",
-          manage: "Zarządzaj planem w Shopify",
-          unavailable: "Strona rozliczeń Shopify nie jest jeszcze dostępna. Odśwież rozliczenia i spróbuj ponownie.",
           loadError: "Nie udało się wczytać rozliczeń.",
           usedUnlimited: "{{used}} użyto / bez limitu",
           usedLimited: "{{used}} / {{limit}} użyto",
-          currentInShopify: "Aktywny w Shopify",
-          manageInShopify: "Zarządzaj w Shopify",
+          currentPlan: "Aktualny plan",
+          choosePlan: "Wybierz ten plan",
+          downgradeFree: "Przejdź na plan Free",
+          upgradeError: "Nie udało się rozpocząć subskrypcji. Spróbuj ponownie.",
+          cancelError: "Nie udało się anulować planu. Spróbuj ponownie.",
           invoicesMonth: "{{count}} faktur/miesiąc",
           unlimitedInvoices: "Bez limitu faktur"
         },
@@ -759,20 +758,19 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
         },
         billing: {
           title: "Billing",
-          description: "Choose or change a plan on Shopify's pricing page.",
+          description: "Choose or change a plan. You approve payment securely in Shopify admin.",
           managed:
-            "Shopify handles plan changes and payment approval on the Shopify App Pricing page. KSeF Pilot only reads the active plan and usage limits.",
-          pricing404Help:
-            "If Shopify returns a 404, check the Partner Dashboard: Shopify Managed Pricing must be enabled, plans must exist, and SHOPIFY_APP_HANDLE must match the app handle.",
+            "Shopify handles payments. After you choose a plan, you'll approve the charge in Shopify admin. KSeF Pilot reads the active plan and usage limits.",
           inactivePaidPlan:
             "The previous paid plan is not active in Shopify, so the Free limit applies until payment is approved.",
-          manage: "Manage pricing in Shopify",
-          unavailable: "Managed Pricing is not available yet. Refresh billing and try again.",
           loadError: "Could not load billing.",
           usedUnlimited: "{{used}} used / unlimited",
           usedLimited: "{{used}} / {{limit}} used",
-          currentInShopify: "Current in Shopify",
-          manageInShopify: "Manage in Shopify",
+          currentPlan: "Current plan",
+          choosePlan: "Choose this plan",
+          downgradeFree: "Switch to Free",
+          upgradeError: "Could not start the subscription. Please try again.",
+          cancelError: "Could not cancel the plan. Please try again.",
           invoicesMonth: "{{count}} invoices/month",
           unlimitedInvoices: "Unlimited invoices"
         },

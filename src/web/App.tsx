@@ -936,13 +936,43 @@ export function App() {
     }
   }
 
-  function openManagedPricing() {
-    if (!billing?.managedPricingUrl) {
-      setBillingError(t("billing.unavailable"));
-      return;
-    }
+  async function startSubscription(planHandle: string) {
+    setBillingError("");
+    try {
+      const response = await fetch(apiPath("/api/billing/subscribe"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: planHandle })
+      });
+      const payload = (await response.json().catch(() => ({}))) as { confirmationUrl?: string; error?: string };
 
-    window.open(billing.managedPricingUrl, "_top");
+      if (!response.ok || !payload.confirmationUrl) {
+        throw new Error(payload.error ?? t("billing.upgradeError"));
+      }
+
+      window.open(payload.confirmationUrl, "_top");
+    } catch (error) {
+      setBillingError(error instanceof Error ? error.message : t("billing.upgradeError"));
+    }
+  }
+
+  async function cancelPlan() {
+    setBillingError("");
+    setBillingLoading(true);
+    try {
+      const response = await fetch(apiPath("/api/billing/cancel"), { method: "POST" });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? t("billing.cancelError"));
+      }
+
+      await loadBilling();
+    } catch (error) {
+      setBillingError(error instanceof Error ? error.message : t("billing.cancelError"));
+    } finally {
+      setBillingLoading(false);
+    }
   }
 
   async function dismissReview() {
@@ -1992,7 +2022,6 @@ export function App() {
                     <BlockStack gap="400">
                       {billingError ? <Banner tone="critical">{billingError}</Banner> : null}
                       <Banner tone="info">{t("billing.managed")}</Banner>
-                      <Banner tone="warning">{t("billing.pricing404Help")}</Banner>
                       {billing?.paidPlanInactive ? (
                         <Banner tone="warning">
                           {t("billing.inactivePaidPlan", {
@@ -2016,9 +2045,6 @@ export function App() {
                               ? t("billing.usedUnlimited", { used: billing.used })
                               : t("billing.usedLimited", { used: billing.used, limit: billing.limit })}
                           </strong>
-                          <Button variant="primary" onClick={openManagedPricing}>
-                            {t("billing.manage")}
-                          </Button>
                         </div>
                       ) : null}
                       {billingLoading ? (
@@ -2044,11 +2070,15 @@ export function App() {
                               </Text>
                               <Button
                                 variant={billing?.plan === handle ? "secondary" : "primary"}
-                                disabled={!billing?.managedPricingUrl}
+                                disabled={billing?.plan === handle}
                                 loading={billingLoading}
-                                onClick={openManagedPricing}
+                                onClick={() => (handle === "free" ? cancelPlan() : startSubscription(handle))}
                               >
-                                {billing?.plan === handle ? t("billing.currentInShopify") : t("billing.manageInShopify")}
+                                {billing?.plan === handle
+                                  ? t("billing.currentPlan")
+                                  : handle === "free"
+                                    ? t("billing.downgradeFree")
+                                    : t("billing.choosePlan")}
                               </Button>
                             </BlockStack>
                           </div>
