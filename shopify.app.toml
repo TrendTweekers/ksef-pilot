@@ -23,6 +23,9 @@ embedded = true
 
 [access_scopes]
 scopes = "read_orders,read_customers,read_products"
+# Shopify managed installation (pairs with token exchange; avoids the legacy
+# OAuth authorization-code install that triggers the deprecated-token warning).
+use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [

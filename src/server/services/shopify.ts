@@ -141,6 +141,32 @@ export function shopFromSessionToken(token: string) {
   }
 }
 
+// Token exchange: trade a verified App Bridge session token for an offline
+// access token without an OAuth redirect (Shopify managed install path).
+export async function exchangeSessionTokenForOfflineToken(shop: string, sessionToken: string) {
+  const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json"
+    },
+    body: new URLSearchParams({
+      client_id: env.SHOPIFY_API_KEY,
+      client_secret: env.SHOPIFY_API_SECRET,
+      grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+      subject_token: sessionToken,
+      subject_token_type: "urn:ietf:params:oauth:token-type:id_token",
+      requested_token_type: "urn:shopify:params:oauth:token-type:offline-access-token"
+    }).toString()
+  });
+
+  if (!response.ok) {
+    throw new Error(`Shopify token exchange failed with ${response.status}`);
+  }
+
+  return (await response.json()) as { access_token: string; scope: string };
+}
+
 export async function exchangeCodeForAccessToken(shop: string, code: string) {
   const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
     method: "POST",
