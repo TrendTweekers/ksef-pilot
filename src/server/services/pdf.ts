@@ -39,6 +39,19 @@ function textOrDash(value: string | null | undefined) {
   return value?.trim() || "-";
 }
 
+function statusLabel(invoice: PdfInvoice) {
+  if (invoice.ksefNumber) return "Submitted to KSeF";
+  if (invoice.status === "exported") return "Exported draft";
+  if (invoice.status === "correction_needed") return "Needs correction review";
+  if (invoice.status === "corrected") return "Corrected";
+  return "Draft for review";
+}
+
+function drawField(doc: PDFKit.PDFDocument, label: string, value: string, x: number, y: number, width: number) {
+  doc.fillColor("#6b5b4a").font("Helvetica-Bold").fontSize(7).text(label.toUpperCase(), x, y, { width });
+  doc.fillColor("#101729").font("Helvetica").fontSize(9).text(value, x, y + 12, { width, lineGap: 2 });
+}
+
 function qrHost() {
   if (env.KSEF_API_BASE_URL?.includes("demo")) return "https://qr-demo.ksef.mf.gov.pl";
   if (env.KSEF_API_BASE_URL?.includes("test")) return "https://qr-test.ksef.mf.gov.pl";
@@ -91,91 +104,113 @@ export async function buildInvoicePdf(invoice: PdfInvoice) {
     doc.on("error", reject);
   });
 
-  doc.font("Helvetica-Bold").fontSize(20).text("KSeF Pilot draft invoice", { align: "left", width: qrPng ? 340 : 500 });
-  doc.moveDown(0.25);
-  doc.font("Helvetica").fontSize(10).fillColor("#6b7280").text("Draft preview generated from Shopify order data. The XML remains the legal KSeF payload.", {
-    width: qrPng ? 340 : 500
+  doc.rect(0, 0, 595, 132).fill("#fff8ef");
+  doc.rect(0, 0, 7, 842).fill("#e21d2f");
+  doc.fillColor("#e21d2f").font("Helvetica-Bold").fontSize(8).text("KSEF PILOT BY FAKTURAFLOW", 48, 42, {
+    characterSpacing: 0.6
   });
+  doc.fillColor("#101729").font("Helvetica-Bold").fontSize(23).text("FA(3) invoice packet", 48, 58, {
+    width: qrPng ? 330 : 500
+  });
+  doc.fillColor("#6b5b4a").font("Helvetica").fontSize(9).text(
+    invoice.ksefNumber
+      ? "KSeF number and verification QR included."
+      : "Review preview generated from Shopify order data. The attached XML is the KSeF payload.",
+    48,
+    88,
+    { width: qrPng ? 330 : 500 }
+  );
+
   if (qrPng) {
-    doc.image(qrPng, 440, 48, { width: 82 });
-    doc.fillColor("#101729").font("Helvetica-Bold").fontSize(7).text(invoice.ksefNumber ?? "", 405, 134, {
-      width: 150,
+    doc.roundedRect(429, 30, 118, 118, 6).fill("#ffffff").strokeColor("#eadfca").stroke();
+    doc.image(qrPng, 447, 42, { width: 82 });
+    doc.fillColor("#101729").font("Helvetica-Bold").fontSize(6.5).text(invoice.ksefNumber ?? "", 435, 127, {
+      width: 105,
       align: "center"
     });
   }
-  doc.moveDown(1.2);
 
-  doc.fillColor("#101729").font("Helvetica-Bold").fontSize(13).text(`Order ${invoice.orderName}`);
-  doc.font("Helvetica").fontSize(10).text(`Status: ${invoice.status}`);
-  doc.text(`Created: ${invoice.createdAt.toISOString().slice(0, 10)}`);
-  doc.text(`KSeF number: ${textOrDash(invoice.ksefNumber)}`);
+  const statusX = 48;
+  const statusY = 152;
+  doc.roundedRect(statusX, statusY, 500, 62, 7).fill("#ffffff").strokeColor("#eadfca").stroke();
+  drawField(doc, "Order", invoice.orderName, statusX + 16, statusY + 14, 110);
+  drawField(doc, "Status", statusLabel(invoice), statusX + 145, statusY + 14, 130);
+  drawField(doc, "Created", invoice.createdAt.toISOString().slice(0, 10), statusX + 295, statusY + 14, 80);
+  drawField(doc, "KSeF number", textOrDash(invoice.ksefNumber), statusX + 392, statusY + 14, 92);
+
   if (verificationUrl) {
-    doc.text(`Verification link: ${verificationUrl}`, { width: 500 });
+    doc.fillColor("#6b5b4a").font("Helvetica").fontSize(7).text(`Verification: ${verificationUrl}`, 64, 220, {
+      width: 468
+    });
   }
-  doc.moveDown();
 
-  const leftX = doc.x;
+  const leftX = 48;
   const rightX = 315;
-  const startY = doc.y;
+  const startY = verificationUrl ? 246 : 232;
 
-  doc.font("Helvetica-Bold").fontSize(11).text("Seller", leftX, startY);
-  doc.font("Helvetica").fontSize(10);
-  doc.text(textOrDash(invoice.shop.sellerName), leftX);
-  doc.text(`NIP: ${textOrDash(invoice.shop.sellerNip)}`, leftX);
-  doc.text(textOrDash(invoice.shop.sellerAddress), leftX);
-  doc.text(`Place of issue: ${textOrDash(invoice.shop.placeOfIssue)}`, leftX);
+  doc.roundedRect(leftX, startY, 233, 96, 7).fill("#ffffff").strokeColor("#eadfca").stroke();
+  doc.roundedRect(rightX, startY, 233, 96, 7).fill("#ffffff").strokeColor("#eadfca").stroke();
 
-  doc.font("Helvetica-Bold").fontSize(11).text("Buyer", rightX, startY);
-  doc.font("Helvetica").fontSize(10);
-  doc.text(textOrDash(invoice.buyerName), rightX);
-  doc.text(`NIP: ${invoice.nip}`, rightX);
+  doc.fillColor("#101729").font("Helvetica-Bold").fontSize(11).text("Seller", leftX + 16, startY + 15);
+  doc.fillColor("#101729").font("Helvetica").fontSize(9);
+  doc.text(textOrDash(invoice.shop.sellerName), leftX + 16, startY + 35, { width: 200 });
+  doc.text(`NIP: ${textOrDash(invoice.shop.sellerNip)}`, leftX + 16, startY + 50, { width: 200 });
+  doc.text(textOrDash(invoice.shop.sellerAddress), leftX + 16, startY + 65, { width: 200 });
+  doc.text(`Place: ${textOrDash(invoice.shop.placeOfIssue)}`, leftX + 16, startY + 80, { width: 200 });
 
-  doc.y = Math.max(doc.y, startY + 88);
-  doc.moveDown();
+  doc.fillColor("#101729").font("Helvetica-Bold").fontSize(11).text("Buyer", rightX + 16, startY + 15);
+  doc.fillColor("#101729").font("Helvetica").fontSize(9);
+  doc.text(textOrDash(invoice.buyerName), rightX + 16, startY + 35, { width: 200 });
+  doc.text(`NIP: ${invoice.nip}`, rightX + 16, startY + 50, { width: 200 });
 
-  const tableTop = doc.y;
+  const tableTop = startY + 122;
   const columns = {
-    name: 48,
-    qty: 265,
-    net: 315,
-    vat: 390,
-    gross: 465
+    name: 64,
+    qty: 274,
+    net: 322,
+    vat: 393,
+    gross: 472
   };
 
-  doc.rect(48, tableTop, 500, 24).fill("#f8f4ec");
+  doc.roundedRect(48, tableTop, 500, 28, 6).fill("#101729");
   doc.fillColor("#101729").font("Helvetica-Bold").fontSize(9);
-  doc.text("Item", columns.name, tableTop + 8, { width: 205 });
-  doc.text("Qty", columns.qty, tableTop + 8, { width: 38, align: "right" });
-  doc.text("Net", columns.net, tableTop + 8, { width: 60, align: "right" });
-  doc.text("VAT", columns.vat, tableTop + 8, { width: 55, align: "right" });
-  doc.text("Gross", columns.gross, tableTop + 8, { width: 75, align: "right" });
+  doc.fillColor("#ffffff").text("Item", columns.name, tableTop + 10, { width: 200 });
+  doc.text("Qty", columns.qty, tableTop + 10, { width: 34, align: "right" });
+  doc.text("Net", columns.net, tableTop + 10, { width: 58, align: "right" });
+  doc.text("VAT", columns.vat, tableTop + 10, { width: 64, align: "right" });
+  doc.text("Gross", columns.gross, tableTop + 10, { width: 60, align: "right" });
 
-  let y = tableTop + 32;
+  let y = tableTop + 40;
   doc.font("Helvetica").fontSize(9);
 
-  for (const item of invoice.items) {
-    if (y > 720) {
+  invoice.items.forEach((item, index) => {
+    if (y > 705) {
       doc.addPage();
-      y = 48;
+      y = 64;
     }
 
+    if (index % 2 === 0) {
+      doc.rect(48, y - 8, 500, 30).fill("#fffdfa");
+    }
     doc.fillColor("#101729");
-    doc.text(item.name, columns.name, y, { width: 205 });
-    doc.text(String(item.quantity), columns.qty, y, { width: 38, align: "right" });
-    doc.text(money(item.totalNet), columns.net, y, { width: 60, align: "right" });
-    doc.text(`${money(item.totalVat)} (${item.vatRate}%)`, columns.vat, y, { width: 65, align: "right" });
-    doc.text(money(Number(item.totalNet.toString()) + Number(item.totalVat.toString())), columns.gross, y, { width: 75, align: "right" });
-    y += 28;
-  }
+    doc.text(item.name, columns.name, y, { width: 200 });
+    doc.text(String(item.quantity), columns.qty, y, { width: 34, align: "right" });
+    doc.text(money(item.totalNet), columns.net, y, { width: 58, align: "right" });
+    doc.text(`${money(item.totalVat)} (${item.vatRate}%)`, columns.vat, y, { width: 64, align: "right" });
+    doc.text(money(Number(item.totalNet.toString()) + Number(item.totalVat.toString())), columns.gross, y, { width: 60, align: "right" });
+    y += 30;
+  });
 
-  doc.moveTo(48, y).lineTo(548, y).strokeColor("#e5dfcc").stroke();
-  y += 18;
-  doc.fillColor("#101729").font("Helvetica-Bold").fontSize(12);
-  doc.text(`Total gross: ${money(invoice.totalGross)}`, 365, y, { width: 183, align: "right" });
+  y += 8;
+  doc.roundedRect(330, y, 218, 46, 7).fill("#fff8ef").strokeColor("#eadfca").stroke();
+  doc.fillColor("#6b5b4a").font("Helvetica-Bold").fontSize(8).text("TOTAL GROSS", 348, y + 11, { width: 80 });
+  doc.fillColor("#101729").font("Helvetica-Bold").fontSize(15).text(money(invoice.totalGross), 430, y + 9, {
+    width: 100,
+    align: "right"
+  });
 
-  doc.moveDown(3);
-  doc.font("Helvetica").fontSize(9).fillColor("#6b7280");
-  doc.text("KSeF Pilot by FakturaFlow. This PDF is a review aid; verify and submit the FA(3) XML according to Polish KSeF rules.", 48, 760, {
+  doc.font("Helvetica").fontSize(8).fillColor("#6b5b4a");
+  doc.text("KSeF Pilot by FakturaFlow. Review the FA(3) XML before live KSeF submission. The app reads Shopify orders and never modifies them.", 48, 760, {
     width: 500,
     align: "center"
   });
