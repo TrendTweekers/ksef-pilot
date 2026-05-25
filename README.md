@@ -76,6 +76,19 @@ The next implementation slices are production token validation hardening, partia
    npm run dev
    ```
 
+## Railway Deployment
+
+`railway.json` runs `npm run prisma:deploy` before starting the new process. This keeps schema changes ahead of the deployed code.
+
+Operational health endpoints:
+
+```text
+GET /healthz  - process liveness
+GET /readyz   - process + database readiness
+```
+
+Railway uses `/readyz` as the deploy healthcheck so a release does not become healthy until Postgres is reachable after migrations.
+
 ## Shopify Scopes
 
 The app requests the minimal MVP scopes:

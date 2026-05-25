@@ -6,6 +6,7 @@ import express from "express";
 import helmet from "helmet";
 import { ZodError } from "zod";
 import { env } from "./config/env.js";
+import { prisma } from "./config/prisma.js";
 import { authRouter } from "./routes/auth.js";
 import { apiRouter } from "./routes/api.js";
 import { webhookRouter } from "./routes/webhooks.js";
@@ -34,6 +35,35 @@ app.use(cors({ origin: env.NODE_ENV === "development" ? true : env.APP_URL, cred
 app.use(cookieParser());
 app.use("/webhooks", express.raw({ type: "application/json" }), webhookRouter);
 app.use(express.json({ limit: "1mb" }));
+
+app.get("/healthz", (_req, res) => {
+  res.json({
+    ok: true,
+    app: "KSeF Pilot",
+    environment: env.NODE_ENV,
+    checkedAt: new Date().toISOString()
+  });
+});
+
+app.get("/readyz", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      ok: true,
+      app: "KSeF Pilot",
+      database: "ok",
+      checkedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(503).json({
+      ok: false,
+      app: "KSeF Pilot",
+      database: "error",
+      error: error instanceof Error ? error.message : "Unknown readiness error",
+      checkedAt: new Date().toISOString()
+    });
+  }
+});
 
 app.use("/auth", authRouter);
 app.use("/api", apiRouter);
