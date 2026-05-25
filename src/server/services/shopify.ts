@@ -161,7 +161,8 @@ export async function exchangeSessionTokenForOfflineToken(shop: string, sessionT
   });
 
   if (!response.ok) {
-    throw new Error(`Shopify token exchange failed with ${response.status}`);
+    const body = await response.text().catch(() => "");
+    throw new Error(`Shopify token exchange failed with ${response.status}${body ? `: ${body.slice(0, 300)}` : ""}`);
   }
 
   return (await response.json()) as { access_token: string; scope: string };
@@ -213,7 +214,8 @@ export async function shopifyGraphql<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`Shopify Admin API request failed with ${response.status}`);
+    const body = await response.text().catch(() => "");
+    throw new Error(`Shopify Admin API request failed with ${response.status}${body ? `: ${body.slice(0, 300)}` : ""}`);
   }
 
   const payload = (await response.json()) as ShopifyGraphqlResponse<T>;
