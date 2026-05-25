@@ -6,9 +6,22 @@ import { exchangeSessionTokenForOfflineToken, normalizeShop, shopFromSessionToke
 import { registerCoreWebhooks } from "../services/webhookSubscriptions.js";
 import { notifyTelegram } from "../services/telegram.js";
 
+// Re-acquire the offline token at most this often per shop (token exchange should
+// not run on every request). Stored tokens are non-expiring offline tokens.
+const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000;
+const lastTokenRefresh = new Map<string, number>();
+const inFlightRefresh = new Map<string, Promise<Shop>>();
+
+function tokenNeedsRefresh(shopDomain: string, shop: Shop | null) {
+  if (!shop || !shop.accessToken) {
+    return true;
+  }
+  return Date.now() - (lastTokenRefresh.get(shopDomain) ?? 0) > REFRESH_INTERVAL_MS;
+}
+
 // Obtain (or refresh) the shop's offline access token via token exchange and
-// persist it. Used the first time an embedded shop has no stored token, which
-// replaces the legacy OAuth authorization-code install for managed installs.
+// persist it. Replaces the legacy OAuth authorization-code install and also
+// heals tokens that Shopify has invalidated. registerCoreWebhooks is idempotent.
 async function installViaTokenExchange(shopDomain: string, sessionToken: string, existing: Shop | null) {
   const token = await exchangeSessionTokenForOfflineToken(shopDomain, sessionToken);
   const wasInstalled = Boolean(existing?.accessToken);
@@ -31,8 +44,7 @@ async function installViaTokenExchange(shopDomain: string, sessionToken: string,
     update: { scope: token.scope || shopifyScopes.join(",") }
   });
 
-  // Webhook registration is best-effort: a transient failure must not block the
-  // merchant from using the app on this request.
+  // Best-effort: a transient webhook failure must not block the merchant.
   try {
     await registerCoreWebhooks(shop);
   } catch (error) {
@@ -44,6 +56,26 @@ async function installViaTokenExchange(shopDomain: string, sessionToken: string,
   }
 
   return shop;
+}
+
+// Deduplicate concurrent refreshes (a page load fires several API calls at once).
+function refreshAccessToken(shopDomain: string, sessionToken: string, existing: Shop | null) {
+  const pending = inFlightRefresh.get(shopDomain);
+  if (pending) {
+    return pending;
+  }
+
+  const promise = installViaTokenExchange(shopDomain, sessionToken, existing)
+    .then((shop) => {
+      lastTokenRefresh.set(shopDomain, Date.now());
+      return shop;
+    })
+    .finally(() => {
+      inFlightRefresh.delete(shopDomain);
+    });
+
+  inFlightRefresh.set(shopDomain, promise);
+  return promise;
 }
 
 export async function loadShop(req: Request, res: Response, next: NextFunction) {
@@ -69,15 +101,18 @@ export async function loadShop(req: Request, res: Response, next: NextFunction) 
 
   let shop = await prisma.shop.findUnique({ where: { domain: shopDomain } });
 
-  // No stored access token yet (new managed install): exchange the verified
-  // session token for one. Existing installs keep their token untouched.
-  if (sessionToken && (!shop || !shop.accessToken)) {
+  // With a verified session token, mint a fresh access token when missing or
+  // stale. This installs new shops and heals tokens Shopify has invalidated.
+  if (sessionToken && tokenNeedsRefresh(shopDomain, shop)) {
     try {
-      shop = await installViaTokenExchange(shopDomain, sessionToken, shop);
+      shop = await refreshAccessToken(shopDomain, sessionToken, shop);
     } catch (error) {
-      console.error("Token exchange failed", error);
-      res.status(401).json({ error: "Could not authorize this shop with Shopify. Please reopen the app." });
-      return;
+      if (!shop || !shop.accessToken) {
+        console.error("Token exchange failed", error);
+        res.status(401).json({ error: "Could not authorize this shop with Shopify. Please reopen the app." });
+        return;
+      }
+      console.warn("Token refresh failed; continuing with existing token", error);
     }
   }
 
