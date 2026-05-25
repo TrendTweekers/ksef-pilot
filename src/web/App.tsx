@@ -2107,6 +2107,7 @@ export function App() {
                     <BlockStack gap="400">
                       {billingError ? <Banner tone="critical">{billingError}</Banner> : null}
                       <Banner tone="info">{t("billing.managed")}</Banner>
+                      <Banner tone="warning">{t("billing.pricing404Help")}</Banner>
                       {billing?.paidPlanInactive ? (
                         <Banner tone="warning">
                           {t("billing.inactivePaidPlan", {

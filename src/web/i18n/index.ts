@@ -374,6 +374,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           description: "Wybierz lub zmień plan na stronie rozliczeń Shopify.",
           managed:
             "Shopify obsługuje zmianę planu i zatwierdzenie płatności na stronie Shopify App Pricing. KSeF Pilot tylko odczytuje aktywny plan i limity.",
+          pricing404Help:
+            "Jeśli strona Shopify zwróci 404, sprawdź w Partner Dashboard, czy włączono Shopify Managed Pricing, utworzono plany i czy zmienna SHOPIFY_APP_HANDLE zgadza się z handlem aplikacji.",
           inactivePaidPlan:
             "Poprzedni płatny plan nie jest aktywny w Shopify, dlatego obowiązuje limit planu Free do czasu zatwierdzenia płatności.",
           manage: "Zarządzaj planem w Shopify",
@@ -754,6 +756,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           description: "Choose or change a plan on Shopify's pricing page.",
           managed:
             "Shopify handles plan changes and payment approval on the Shopify App Pricing page. KSeF Pilot only reads the active plan and usage limits.",
+          pricing404Help:
+            "If Shopify returns a 404, check the Partner Dashboard: Shopify Managed Pricing must be enabled, plans must exist, and SHOPIFY_APP_HANDLE must match the app handle.",
           inactivePaidPlan:
             "The previous paid plan is not active in Shopify, so the Free limit applies until payment is approved.",
           manage: "Manage pricing in Shopify",
