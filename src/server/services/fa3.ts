@@ -1,6 +1,7 @@
 export type InvoiceType = "VAT" | "KOR" | "ZAL" | "ROZ" | "UPR" | "KOR_ZAL" | "KOR_ROZ";
 
 export interface Fa3LineItem {
+  sourceLineItemId?: string;
   name: string;
   unit?: string;
   quantity: number;

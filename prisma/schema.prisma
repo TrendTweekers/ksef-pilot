@@ -162,10 +162,13 @@ model InvoiceItem {
   id          String      @id @default(uuid())
   invoiceId   String
   invoice     KsefInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  shopifyLineItemId String?
   name        String
   quantity    Int
   unitPrice   Decimal     @db.Decimal(12, 2)
   vatRate     String
   totalNet    Decimal     @db.Decimal(12, 2)
   totalVat    Decimal     @db.Decimal(12, 2)
+
+  @@index([invoiceId, shopifyLineItemId])
 }

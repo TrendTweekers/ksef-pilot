@@ -443,6 +443,34 @@ function lineTaxAmount(line: ShopifyLineItemNode) {
   return roundMoney(line.taxLines.reduce((sum, taxLine) => sum + toNumber(taxLine.priceSet.shopMoney.amount), 0));
 }
 
+function orderLineItems(order: ShopifyOrderNode): Fa3LineItem[] {
+  return order.lineItems.nodes.map((line) => {
+    const vatRate = domesticVatRateFromTaxLines(line.taxLines);
+
+    if (!vatRate) {
+      throw new Error("This order contains VAT rates outside the supported 23%, 8%, and 5% range, or a line item has no Shopify tax line. Issue this invoice manually for now.");
+    }
+
+    const lineAmount = roundMoney(toNumber(line.discountedTotalSet.shopMoney.amount));
+    const vat = lineTaxAmount(line);
+    const net = order.taxesIncluded ? roundMoney(lineAmount - vat) : lineAmount;
+    const gross = order.taxesIncluded ? lineAmount : roundMoney(net + vat);
+    const quantity = Math.max(1, line.quantity);
+
+    return {
+      sourceLineItemId: line.id,
+      name: line.name,
+      unit: "szt.",
+      quantity,
+      unitPrice: roundMoney(net / quantity),
+      vatRate,
+      totalNet: net,
+      totalVat: vat,
+      totalGross: gross
+    };
+  });
+}
+
 function domesticVatRateFromAmounts(net: number, vat: number): Fa3LineItem["vatRate"] | null {
   if (Math.abs(net) < 0.005) {
     return null;
@@ -453,6 +481,116 @@ function domesticVatRateFromAmounts(net: number, vat: number): Fa3LineItem["vatR
   if (Math.abs(rate - 0.08) < 0.001) return "8";
   if (Math.abs(rate - 0.05) < 0.001) return "5";
   return null;
+}
+
+type CorrectionSourceItem = {
+  shopifyLineItemId?: string | null;
+  name: string;
+  quantity: number;
+  vatRate: string;
+  totalNet: unknown;
+  totalVat: unknown;
+};
+
+type LineItemDeltaBase = {
+  sourceLineItemId?: string;
+  name: string;
+  vatRate: Fa3LineItem["vatRate"];
+  quantity: number;
+  totalNet: number;
+  totalVat: number;
+};
+
+function lineItemKey(item: { sourceLineItemId?: string | null; shopifyLineItemId?: string | null; name: string; vatRate: string }) {
+  return item.sourceLineItemId || item.shopifyLineItemId || `${item.name.trim().toLowerCase()}|${item.vatRate}`;
+}
+
+function mergeDeltaItem(map: Map<string, LineItemDeltaBase>, item: LineItemDeltaBase) {
+  const key = lineItemKey(item);
+  const existing = map.get(key);
+
+  if (!existing) {
+    map.set(key, { ...item });
+    return;
+  }
+
+  existing.quantity += item.quantity;
+  existing.totalNet = roundMoney(existing.totalNet + item.totalNet);
+  existing.totalVat = roundMoney(existing.totalVat + item.totalVat);
+}
+
+function originalInvoiceItemDeltas(items: CorrectionSourceItem[]) {
+  const map = new Map<string, LineItemDeltaBase>();
+
+  for (const item of items) {
+    mergeDeltaItem(map, {
+      sourceLineItemId: item.shopifyLineItemId ?? undefined,
+      name: item.name,
+      vatRate: item.vatRate as Fa3LineItem["vatRate"],
+      quantity: item.quantity,
+      totalNet: roundMoney(Number(item.totalNet)),
+      totalVat: roundMoney(Number(item.totalVat))
+    });
+  }
+
+  return map;
+}
+
+function currentOrderItemDeltas(order: ShopifyOrderNode) {
+  const map = new Map<string, LineItemDeltaBase>();
+
+  for (const item of orderLineItems(order)) {
+    mergeDeltaItem(map, {
+      sourceLineItemId: item.sourceLineItemId,
+      name: item.name,
+      vatRate: item.vatRate,
+      quantity: item.quantity,
+      totalNet: item.totalNet,
+      totalVat: item.totalVat
+    });
+  }
+
+  return map;
+}
+
+function editedOrderCorrectionItems(originalItems: CorrectionSourceItem[], order: ShopifyOrderNode) {
+  const original = originalInvoiceItemDeltas(originalItems);
+  const current = currentOrderItemDeltas(order);
+  const keys = new Set([...original.keys(), ...current.keys()]);
+  const lineItems: Fa3LineItem[] = [];
+
+  for (const key of keys) {
+    const originalItem = original.get(key);
+    const currentItem = current.get(key);
+    const totalNet = roundMoney((currentItem?.totalNet ?? 0) - (originalItem?.totalNet ?? 0));
+    const totalVat = roundMoney((currentItem?.totalVat ?? 0) - (originalItem?.totalVat ?? 0));
+
+    if (Math.abs(totalNet) < 0.005 && Math.abs(totalVat) < 0.005) {
+      continue;
+    }
+
+    const base = currentItem ?? originalItem;
+    if (!base) {
+      continue;
+    }
+
+    const quantityDelta = (currentItem?.quantity ?? 0) - (originalItem?.quantity ?? 0);
+    const quantity = Math.max(1, Math.abs(quantityDelta) || 1);
+
+    lineItems.push({
+      sourceLineItemId: base.sourceLineItemId,
+      name: `Korekta edycji: ${base.name}`,
+      unit: "szt.",
+      quantity,
+      unitPrice: roundMoney(totalNet / quantity),
+      vatRate: base.vatRate,
+      totalNet,
+      totalVat,
+      totalGross: roundMoney(totalNet + totalVat)
+    });
+  }
+
+  return lineItems;
 }
 
 function toOrderListItem(
@@ -622,24 +760,7 @@ function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyer
   const invoiceCurrency = order.currencyCode;
 
   const buyer = orderBuyer(order);
-  const lineItems = order.lineItems.nodes.map((line) => {
-    const lineAmount = roundMoney(toNumber(line.discountedTotalSet.shopMoney.amount));
-    const vat = lineTaxAmount(line);
-    const net = order.taxesIncluded ? roundMoney(lineAmount - vat) : lineAmount;
-    const gross = order.taxesIncluded ? lineAmount : roundMoney(net + vat);
-    const quantity = Math.max(1, line.quantity);
-
-    return {
-      name: line.name,
-      unit: "szt.",
-      quantity,
-      unitPrice: roundMoney(net / quantity),
-      vatRate: domesticVatRateFromTaxLines(line.taxLines) ?? "23",
-      totalNet: net,
-      totalVat: vat,
-      totalGross: gross
-    };
-  });
+  const lineItems = orderLineItems(order);
 
   const amountNet = roundMoney(lineItems.reduce((sum, item) => sum + item.totalNet, 0));
   const amountVat = roundMoney(lineItems.reduce((sum, item) => sum + item.totalVat, 0));
@@ -724,6 +845,7 @@ function refundCorrectionItems(order: ShopifyOrderNode) {
 
     return {
       name: `Korekta refundu: ${refundItem.lineItem.name}`,
+      sourceLineItemId: refundItem.lineItem.id,
       unit: "szt.",
       quantity,
       unitPrice: roundMoney(totalNet / quantity),
@@ -832,6 +954,7 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
             lastError: null,
             items: {
               create: fa3.lineItems.map((item) => ({
+                shopifyLineItemId: item.sourceLineItemId ?? null,
                 name: item.name,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
@@ -903,6 +1026,7 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
       ...exchangeRateData(rate, fa3.amountGross),
       items: {
         create: fa3.lineItems.map((item) => ({
+          shopifyLineItemId: item.sourceLineItemId ?? null,
           name: item.name,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
@@ -981,24 +1105,12 @@ export async function generateCorrectionForInvoice(shop: Shop, invoiceId: string
 
   const order = await fetchShopifyOrder(shop, original.orderId);
   const refundedItems = refundCorrectionItems(order);
-  const lineItems = refundedItems.length
-    ? refundedItems
-    : original.items.map((item) => {
-        const unitPrice = -roundMoney(Number(item.unitPrice));
-        const totalNet = -roundMoney(Number(item.totalNet));
-        const totalVat = -roundMoney(Number(item.totalVat));
+  const editItems = refundedItems.length ? [] : editedOrderCorrectionItems(original.items, order);
+  const lineItems = refundedItems.length ? refundedItems : editItems;
 
-        return {
-          name: `Korekta: ${item.name}`,
-          unit: "szt.",
-          quantity: Math.max(1, item.quantity),
-          unitPrice,
-          vatRate: item.vatRate as Fa3LineItem["vatRate"],
-          totalNet,
-          totalVat,
-          totalGross: roundMoney(totalNet + totalVat)
-        };
-      });
+  if (!lineItems.length) {
+    throw new Error("No Shopify refund or order edit delta was detected for this invoice. There is nothing to correct automatically.");
+  }
 
   const amountNet = roundMoney(lineItems.reduce((sum, item) => sum + item.totalNet, 0));
   const amountVat = roundMoney(lineItems.reduce((sum, item) => sum + item.totalVat, 0));
@@ -1038,7 +1150,7 @@ export async function generateCorrectionForInvoice(shop: Shop, invoiceId: string
     sourceSystem: "KSeF Pilot Shopify",
     correctionOfInvoiceNumber: originalInvoiceNumber,
     correctionOfIssueDate: original.createdAt.toISOString().slice(0, 10),
-    correctionReason: refundedItems.length ? `${reason}. Wykryto pozycje refundu Shopify.` : reason,
+    correctionReason: refundedItems.length ? `${reason}. Wykryto pozycje refundu Shopify.` : `${reason}. Wykryto różnice po edycji zamówienia Shopify.`,
     lineItems
   };
   const validation = validateFa3Input(fa3);
@@ -1064,6 +1176,7 @@ export async function generateCorrectionForInvoice(shop: Shop, invoiceId: string
       ...exchangeRateData(correctionRate, amountGross),
       items: {
         create: lineItems.map((item) => ({
+          shopifyLineItemId: item.sourceLineItemId ?? null,
           name: item.name,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
