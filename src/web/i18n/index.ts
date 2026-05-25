@@ -359,7 +359,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             processing: "W toku",
             retrying: "Retry",
             failed: "Błędy",
-            submitted: "Wysłane"
+            submitted: "Wysłane",
+            confirmed: "Potwierdzone"
           },
           status: {
             all: "Wszystkie",
@@ -367,6 +368,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             processing: "W toku",
             retrying: "Retry",
             submitted: "Wysłane",
+            confirmed: "Potwierdzone",
             failed: "Błąd"
           }
         },
@@ -742,7 +744,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             processing: "Processing",
             retrying: "Retrying",
             failed: "Failed",
-            submitted: "Submitted"
+            submitted: "Submitted",
+            confirmed: "Confirmed"
           },
           status: {
             all: "All",
@@ -750,6 +753,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             processing: "Processing",
             retrying: "Retrying",
             submitted: "Submitted",
+            confirmed: "Confirmed",
             failed: "Failed"
           }
         },

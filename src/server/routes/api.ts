@@ -692,6 +692,7 @@ apiRouter.get("/ksef/submissions", loadShop, async (req, res, next) => {
         processing: grouped.processing ?? 0,
         retrying: grouped.retrying ?? 0,
         submitted: grouped.submitted ?? 0,
+        confirmed: grouped.confirmed ?? 0,
         failed: grouped.failed ?? 0
       },
       submissions: submissions.map((submission) => ({
@@ -716,6 +717,7 @@ apiRouter.get("/ksef/submissions", loadShop, async (req, res, next) => {
           ksefNumber: submission.invoice.ksefNumber,
           upoStatus: submission.invoice.upoStatus,
           hasUpo: Boolean(submission.invoice.upoXml),
+          currency: submission.invoice.currency,
           totalGross: submission.invoice.totalGross
         }
       }))

@@ -20,7 +20,7 @@ import { AppBridgeBootstrap } from "./components/AppBridgeBootstrap";
 
 type View = "orders" | "invoices" | "queue" | "settings" | "billing";
 type InvoicePeriod = "week" | "month" | "all";
-type QueueStatus = "all" | "pending" | "processing" | "retrying" | "submitted" | "failed";
+type QueueStatus = "all" | "pending" | "processing" | "retrying" | "submitted" | "confirmed" | "failed";
 
 interface SettingsState {
   sellerNip: string;
@@ -130,6 +130,7 @@ interface QueueSubmission {
     ksefNumber?: string | null;
     upoStatus?: string | null;
     hasUpo: boolean;
+    currency: string;
     totalGross: string | number;
   };
 }
@@ -141,6 +142,7 @@ interface QueueResponse {
     processing: number;
     retrying: number;
     submitted: number;
+    confirmed: number;
     failed: number;
   };
   submissions: QueueSubmission[];
@@ -2005,7 +2007,7 @@ export function App() {
                       {queueError ? <Banner tone="critical">{queueError}</Banner> : null}
                       {queue ? (
                         <div className="queue-summary">
-                          {(["total", "processing", "retrying", "failed", "submitted"] as const).map((key) => (
+                          {(["total", "processing", "retrying", "failed", "submitted", "confirmed"] as const).map((key) => (
                             <div className="queue-summary-item" key={key}>
                               <span>{t(`queue.summary.${key}`)}</span>
                               <strong>{queue.summary[key]}</strong>
@@ -2025,6 +2027,7 @@ export function App() {
                               { label: t("queue.status.processing"), value: "processing" },
                               { label: t("queue.status.retrying"), value: "retrying" },
                               { label: t("queue.status.submitted"), value: "submitted" },
+                              { label: t("queue.status.confirmed"), value: "confirmed" },
                               { label: t("queue.status.failed"), value: "failed" }
                             ]}
                           />
@@ -2057,14 +2060,14 @@ export function App() {
                                   <Text as="h3" variant="headingMd">
                                     {submission.invoice.orderName}
                                   </Text>
-                                  <Badge tone={submission.status === "submitted" ? "success" : submission.status === "failed" ? "critical" : "attention"}>
+                                  <Badge tone={submission.status === "submitted" || submission.status === "confirmed" ? "success" : submission.status === "failed" ? "critical" : "attention"}>
                                     {t(`queue.status.${submission.status}`, { defaultValue: submission.status })}
                                   </Badge>
                                   <Badge tone="info">{submission.mode}</Badge>
                                 </InlineStack>
                                 <Text as="p" tone="subdued">
                                   {submission.invoice.buyerName} - NIP {submission.invoice.nip} -{" "}
-                                  {Number(submission.invoice.totalGross).toFixed(2)} PLN
+                                  {Number(submission.invoice.totalGross).toFixed(2)} {submission.invoice.currency ?? "PLN"}
                                 </Text>
                                 <Text as="p" tone="subdued">
                                   {t("queue.createdLine", {
