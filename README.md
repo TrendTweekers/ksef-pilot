@@ -265,7 +265,8 @@ Authorization: Bearer <KSEF_WORKER_SECRET>
 
 - KSeF tokens must remain encrypted at rest.
 - FA(3) XML must be validated against the official XSD before any KSeF API submission.
-- Phase 1 supports PLN domestic B2B invoices with 23%, 8%, and 5% VAT rates. Foreign currency, 0%, exempt, WDT/export, reverse charge, split payment, and OSS are intentionally blocked until implemented safely.
-- Foreign-currency support has an NBP Table A rate cache foundation (`/api/nbp/rate?currency=EUR&date=YYYY-MM-DD`) using the last available published rate before the selected date. Do not enable FX FA(3) generation until the XML includes the required VAT-in-PLN fields (`P_14_xW`) and stores the exact rate/table used on the invoice.
+- Phase 1 supports domestic B2B invoices with 23%, 8%, and 5% VAT rates. PLN invoices are generated directly. Foreign-currency domestic invoices use cached NBP Table A rates and include VAT-in-PLN fields (`P_14_xW`) plus `KursWalutyZ`.
+- The NBP lookup endpoint is `/api/nbp/rate?currency=EUR&date=YYYY-MM-DD`; it uses the last available published rate before the selected date and stores the exact table/rate used on the invoice.
+- 0%, exempt, WDT/export, reverse charge, split payment, and OSS are intentionally blocked until implemented safely.
 - The app reads Shopify orders only and must not modify orders.
 - KSeF submission failures should be retried with exponential backoff.

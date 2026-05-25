@@ -96,7 +96,8 @@ const fa3PreviewSchema = z.object({
   amountNet: z.coerce.number().nonnegative(),
   amountVat: z.coerce.number().nonnegative(),
   amountGross: z.coerce.number().nonnegative(),
-  currency: z.literal("PLN").default("PLN"),
+  currency: z.string().regex(/^[A-Z]{3}$/).default("PLN"),
+  exchangeRate: z.coerce.number().positive().optional(),
   lineItems: z.array(fa3LineSchema).min(1)
 });
 
@@ -151,14 +152,18 @@ function invoiceManifestRows(invoices: Array<{
   status: string;
   correctionOf: string | null;
   ksefNumber: string | null;
+  currency: string;
   totalGross: { toString(): string };
+  totalGrossPln: { toString(): string } | null;
   createdAt: Date;
 }>) {
   return invoices.map((invoice) => ({
     order: invoice.orderName,
     buyer: invoice.buyerName,
     nip: invoice.nip,
-    gross_pln: invoice.totalGross.toString(),
+    currency: invoice.currency,
+    gross: invoice.totalGross.toString(),
+    gross_pln: invoice.totalGrossPln?.toString() ?? invoice.totalGross.toString(),
     status: invoice.status,
     correction_of: invoice.correctionOf ?? "",
     ksef_number: invoice.ksefNumber ?? "",
@@ -809,11 +814,13 @@ apiRouter.post("/orders/generate-invoice", loadShop, async (req, res, next) => {
         id: result.invoice.id,
         orderName: result.invoice.orderName,
         status: result.invoice.status,
+        currency: result.invoice.currency,
         totalGross: result.invoice.totalGross,
+        totalGrossPln: result.invoice.totalGrossPln,
         createdAt: result.invoice.createdAt
       }
     });
-    await notifyTelegram(`Invoice draft generated: ${shop.domain} ${result.invoice.orderName} ${result.invoice.totalGross} PLN`);
+    await notifyTelegram(`Invoice draft generated: ${shop.domain} ${result.invoice.orderName} ${result.invoice.totalGross} ${result.invoice.currency}`);
   } catch (error) {
     if (error instanceof Error) {
       res.status(400).json({ error: error.message });

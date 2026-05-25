@@ -69,3 +69,11 @@ async function assertValid(name: string, invoice: Fa3InvoiceData) {
 }
 
 await assertValid("domestic multi-rate VAT with JST/GV flags", baseInvoice());
+await assertValid(
+  "foreign-currency domestic VAT with VAT-in-PLN fields",
+  baseInvoice({
+    invoiceNumber: `SMOKE-FX-${Date.now()}`,
+    currency: "EUR",
+    exchangeRate: 4.321234
+  })
+);

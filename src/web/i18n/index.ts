@@ -222,12 +222,12 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             "Aplikacja skanuje do {{count}} najnowszych zamówień widocznych w Shopify API. Teraz odczytano {{scanned}}. Eksport tygodniowy i miesięczny działa na utworzonych szkicach faktur. {{suffix}}",
           recentWindowMore: "Sklep ma więcej zamówień; zwiększ SHOPIFY_ORDER_SCAN_LIMIT w Railway, jeśli trzeba sięgać głębiej.",
           blockedSummary:
-            "{{count}} zamówienie/zamówienia B2B wymaga ręcznego wystawienia, bo zawiera walutę albo VAT poza obecnym zakresem MVP.",
+            "{{count}} zamówienie/zamówienia B2B wymaga ręcznego wystawienia, bo zawiera VAT poza obecnym zakresem MVP.",
           blockedTitle: "Zamówienia do ręcznego wystawienia",
           blockedDescription: "Nie ukrywamy takich zamówień. Sprzedawca musi wiedzieć, które faktury trzeba obsłużyć poza automatem.",
           unsupported: {
             non_pln:
-              "To zamówienie jest w walucie innej niż PLN. Obsługa walut obcych i przeliczeń VAT jest w przygotowaniu — fakturę wystaw ręcznie.",
+              "Nie udało się dobrać kursu NBP dla tej waluty. Fakturę wystaw ręcznie albo spróbuj ponownie później.",
             mixed_vat:
               "To zamówienie zawiera stawki VAT poza obsługiwanym zakresem 23%, 8% i 5% albo wiele linii podatku na jednej pozycji. Fakturę wystaw ręcznie.",
             missing_tax_lines:
@@ -605,12 +605,12 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             "The app scans up to {{count}} newest orders visible to the Shopify API. It read {{scanned}} this time. Weekly and monthly exports work from the draft invoices you create. {{suffix}}",
           recentWindowMore: "This shop has more orders; increase SHOPIFY_ORDER_SCAN_LIMIT in Railway if you need to scan deeper.",
           blockedSummary:
-            "{{count}} B2B order(s) need manual invoicing because currency or VAT is outside the current MVP scope.",
+            "{{count}} B2B order(s) need manual invoicing because VAT is outside the current MVP scope.",
           blockedTitle: "Orders to invoice manually",
           blockedDescription: "These are shown on purpose so merchants know exactly which invoices need handling outside automation.",
           unsupported: {
             non_pln:
-              "This order uses a non-PLN currency. Foreign-currency and VAT conversion support is in progress; issue this invoice manually for now.",
+              "The app could not find an NBP exchange rate for this currency. Issue this invoice manually or try again later.",
             mixed_vat:
               "This order contains VAT rates outside the supported 23%, 8%, and 5% range, or multiple tax lines on one item. Issue this invoice manually for now.",
             missing_tax_lines:

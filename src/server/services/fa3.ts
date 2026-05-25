@@ -29,6 +29,7 @@ export interface Fa3InvoiceData {
   amountVat: number;
   amountGross: number;
   currency?: string;
+  exchangeRate?: number;
   sourceSystem?: string;
   correctionOfInvoiceNumber?: string;
   correctionReason?: string;
@@ -57,6 +58,10 @@ function amount(value: number) {
   return value.toFixed(2);
 }
 
+function quantity(value: number) {
+  return value.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+}
+
 function isoNowSecondPrecision() {
   return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 }
@@ -67,9 +72,9 @@ function normalizeVatRate(vatRate: Fa3LineItem["vatRate"]) {
 
 function vatBucketTotals(lineItems: Fa3LineItem[]) {
   const buckets = {
-    "23": { net: 0, vat: 0, netField: "P_13_1", vatField: "P_14_1" },
-    "8": { net: 0, vat: 0, netField: "P_13_2", vatField: "P_14_2" },
-    "5": { net: 0, vat: 0, netField: "P_13_3", vatField: "P_14_3" }
+    "23": { net: 0, vat: 0, netField: "P_13_1", vatField: "P_14_1", vatPlnField: "P_14_1W" },
+    "8": { net: 0, vat: 0, netField: "P_13_2", vatField: "P_14_2", vatPlnField: "P_14_2W" },
+    "5": { net: 0, vat: 0, netField: "P_13_3", vatField: "P_14_3", vatPlnField: "P_14_3W" }
   };
 
   for (const item of lineItems) {
@@ -91,7 +96,11 @@ export function validateFa3Input(data: Fa3InvoiceData): Fa3ValidationResult {
   if (!data.sellerName) errors.push("Seller name is required.");
   if (!/^\d{10}$/.test(data.buyerNip)) errors.push("Buyer NIP must be 10 digits.");
   if (!data.buyerName) errors.push("Buyer name is required.");
-  if (data.currency && data.currency !== "PLN") errors.push("MVP supports PLN invoices only.");
+  const currency = data.currency ?? "PLN";
+  if (!/^[A-Z]{3}$/.test(currency)) errors.push("Currency must be a 3-letter ISO code.");
+  if (currency !== "PLN" && (!data.exchangeRate || data.exchangeRate <= 0)) {
+    errors.push("A positive exchange rate is required for non-PLN invoices.");
+  }
   if (!data.lineItems.length) errors.push("At least one invoice line item is required.");
   if (data.invoiceType === "KOR" && !data.correctionReason) errors.push("Correction reason is required.");
 
@@ -127,6 +136,7 @@ export function buildFa3Xml(data: Fa3InvoiceData) {
   }
 
   const currency = data.currency ?? "PLN";
+  const isForeignCurrency = currency !== "PLN";
   const placeOfIssue = data.placeOfIssue ?? "Warszawa";
   const invoiceType = data.invoiceType ?? "VAT";
   const systemInfo = data.sourceSystem ?? "KSeF Pilot Shopify";
@@ -139,11 +149,22 @@ export function buildFa3Xml(data: Fa3InvoiceData) {
         return "";
       }
 
+      const vatPlnXml =
+        isForeignCurrency && data.exchangeRate
+          ? `
+    <fa:${bucket.vatPlnField}>${amount(bucket.vat * data.exchangeRate)}</fa:${bucket.vatPlnField}>`
+          : "";
+
       return `
     <fa:${bucket.netField}>${amount(bucket.net)}</fa:${bucket.netField}>
-    <fa:${bucket.vatField}>${amount(bucket.vat)}</fa:${bucket.vatField}>`;
+    <fa:${bucket.vatField}>${amount(bucket.vat)}</fa:${bucket.vatField}>${vatPlnXml}`;
     })
     .join("");
+  const exchangeRateXml =
+    isForeignCurrency && data.exchangeRate
+      ? `
+    <fa:KursWalutyZ>${quantity(data.exchangeRate)}</fa:KursWalutyZ>`
+      : "";
 
   const lineItemsXml = data.lineItems
     .map(
@@ -204,7 +225,7 @@ export function buildFa3Xml(data: Fa3InvoiceData) {
     <fa:P_1M>${escapeXml(placeOfIssue)}</fa:P_1M>
     <fa:P_2>${escapeXml(data.invoiceNumber)}</fa:P_2>
 ${domesticVatSummaryXml}
-    <fa:P_15>${amount(data.amountGross)}</fa:P_15>
+    <fa:P_15>${amount(data.amountGross)}</fa:P_15>${exchangeRateXml}
     <fa:Adnotacje>
       <fa:P_16>2</fa:P_16>
       <fa:P_17>2</fa:P_17>

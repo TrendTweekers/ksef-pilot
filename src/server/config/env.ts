@@ -18,7 +18,6 @@ const envSchema = z.object({
   KSEF_WORKER_AUTORUN: z.coerce.boolean().default(false),
   KSEF_WORKER_INTERVAL_SECONDS: z.coerce.number().int().min(60).default(300),
   KSEF_WORKER_BATCH_LIMIT: z.coerce.number().int().min(1).max(50).default(10),
-  ALLOW_NON_PLN_TEST_INVOICES: z.coerce.boolean().default(false),
   SHOPIFY_APP_HANDLE: z.string().min(1).default("ksef-pilot"),
   SHOPIFY_MANAGED_PRICING_URL_TEMPLATE: z.string().optional(),
   SHOPIFY_REVIEW_URL: z.string().url().optional(),

@@ -5,6 +5,7 @@ import type { Fa3InvoiceData } from "./fa3.js";
 import { buildFa3Xml, validateFa3Input } from "./fa3.js";
 import { shopifyGraphql } from "./shopify.js";
 import { assertCanGenerateInvoice } from "./billing.js";
+import { getNbpTableARateForPreviousBusinessDay, type NbpExchangeRateResult } from "./nbp.js";
 
 const CUSTOMER_NIP_METAFIELDS = [
   { namespace: "custom", key: "nip" },
@@ -162,6 +163,12 @@ export interface OrderListItem {
   invoiceStatus?: string;
   ksefNumber?: string;
   unsupportedReason?: "non_pln" | "mixed_vat" | "missing_tax_lines";
+}
+
+interface OrderToFa3Options {
+  buyerJst?: boolean;
+  buyerGv?: boolean;
+  exchangeRate?: number;
 }
 
 const orderFields = `
@@ -419,10 +426,6 @@ function domesticVatRateFromTaxLines(taxLines: ShopifyLineItemNode["taxLines"]):
 }
 
 function invoiceSupportIssue(order: ShopifyOrderNode): OrderListItem["unsupportedReason"] {
-  if (order.currencyCode !== "PLN" && !env.ALLOW_NON_PLN_TEST_INVOICES) {
-    return "non_pln";
-  }
-
   for (const line of order.lineItems.nodes) {
     if (!line.taxLines.length) {
       return "missing_tax_lines";
@@ -590,13 +593,9 @@ async function fetchShopifyOrder(shop: Shop, orderId: string) {
   return data.order;
 }
 
-function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyerName: string, options?: { buyerJst?: boolean; buyerGv?: boolean }): Fa3InvoiceData {
+function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyerName: string, options?: OrderToFa3Options): Fa3InvoiceData {
   if (!shop.sellerNip || !shop.sellerName) {
     throw new Error("Seller NIP and seller name are required in KSeF Settings before invoice generation.");
-  }
-
-  if (order.currencyCode !== "PLN" && !env.ALLOW_NON_PLN_TEST_INVOICES) {
-    throw new Error("This order is not yet supported because it is not in PLN. Foreign-currency FA(3) invoices require currency conversion handling and should be issued manually for now.");
   }
 
   const supportIssue = invoiceSupportIssue(order);
@@ -608,7 +607,7 @@ function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyer
     throw new Error("This order is not yet supported because it contains VAT rates outside the supported 23%, 8%, and 5% range, or multiple Shopify tax lines on one item. Issue this invoice manually for now.");
   }
 
-  const invoiceCurrency = order.currencyCode === "PLN" ? "PLN" : "PLN";
+  const invoiceCurrency = order.currencyCode;
 
   const buyer = orderBuyer(order);
   const lineItems = order.lineItems.nodes.map((line) => {
@@ -651,8 +650,41 @@ function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyer
     amountVat,
     amountGross,
     currency: invoiceCurrency,
+    exchangeRate: options?.exchangeRate,
     sourceSystem: "KSeF Pilot Shopify",
     lineItems
+  };
+}
+
+async function exchangeRateForOrder(order: ShopifyOrderNode) {
+  if (order.currencyCode === "PLN") {
+    return null;
+  }
+
+  const rate = await getNbpTableARateForPreviousBusinessDay(order.currencyCode, new Date());
+
+  if (!rate) {
+    throw new Error(`Could not find an NBP Table A exchange rate for ${order.currencyCode}. Issue this invoice manually for now.`);
+  }
+
+  return rate;
+}
+
+function exchangeRateData(rate: NbpExchangeRateResult | null, gross: number) {
+  if (!rate) {
+    return {
+      exchangeRate: null,
+      exchangeRateDate: null,
+      exchangeRateTableNo: null,
+      totalGrossPln: gross
+    };
+  }
+
+  return {
+    exchangeRate: rate.rate,
+    exchangeRateDate: new Date(`${rate.rateDate}T00:00:00.000Z`),
+    exchangeRateTableNo: rate.tableNo,
+    totalGrossPln: roundMoney(gross * rate.rate)
   };
 }
 
@@ -757,7 +789,8 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
   if (existing) {
     const buyerChanged = existing.nip !== buyerNip || existing.buyerName !== buyerName;
     if (buyerChanged && existing.status === "draft" && !existing.ksefNumber) {
-      const fa3 = orderToFa3(shop, order, buyerNip, buyerName, input);
+      const rate = await exchangeRateForOrder(order);
+      const fa3 = orderToFa3(shop, order, buyerNip, buyerName, { ...input, exchangeRate: rate?.rate });
       const validation = validateFa3Input(fa3);
 
       if (!validation.valid) {
@@ -775,10 +808,7 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
             fa3Xml,
             currency: fa3.currency ?? "PLN",
             totalGross: fa3.amountGross,
-            totalGrossPln: fa3.currency === "PLN" || !fa3.currency ? fa3.amountGross : null,
-            exchangeRate: null,
-            exchangeRateDate: null,
-            exchangeRateTableNo: null,
+            ...exchangeRateData(rate, fa3.amountGross),
             fa3ValidatedAt: null,
             fa3ValidationStatus: null,
             fa3ValidationError: null,
@@ -832,7 +862,8 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
 
   await assertCanGenerateInvoice(shop);
 
-  const fa3 = orderToFa3(shop, order, buyerNip, buyerName, input);
+  const rate = await exchangeRateForOrder(order);
+  const fa3 = orderToFa3(shop, order, buyerNip, buyerName, { ...input, exchangeRate: rate?.rate });
   const validation = validateFa3Input(fa3);
 
   if (!validation.valid) {
@@ -852,7 +883,7 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
       status: "draft",
       currency: fa3.currency ?? "PLN",
       totalGross: fa3.amountGross,
-      totalGrossPln: fa3.currency === "PLN" || !fa3.currency ? fa3.amountGross : null,
+      ...exchangeRateData(rate, fa3.amountGross),
       items: {
         create: fa3.lineItems.map((item) => ({
           name: item.name,
