@@ -11,7 +11,6 @@ import {
   Page,
   Select,
   Spinner,
-  Tabs,
   Text,
   TextField
 } from "@shopify/polaris";
@@ -1032,15 +1031,6 @@ export function App() {
     setReviewStatus({ shouldAsk: false, reviewUrl: reviewStatus?.reviewUrl ?? null });
   }
 
-  const tabs = [
-    { id: "orders", content: t("nav.orders") },
-    { id: "invoices", content: t("nav.invoices") },
-    { id: "queue", content: t("nav.queue") },
-    { id: "settings", content: t("nav.settings") },
-    { id: "billing", content: t("nav.billing") },
-    { id: "help", content: t("nav.help") }
-  ];
-  const selectedTab = tabs.findIndex((tab) => tab.id === view);
   const b2bCount = orders.filter((order) => order.isB2b).length;
   const draftCount = orders.filter((order) => order.invoiceStatus === "draft").length;
   const readyCount = orders.filter((order) => order.isB2b && !order.processed).length;
@@ -1184,8 +1174,6 @@ export function App() {
                 </div>
               </div>
 
-              <Tabs tabs={tabs} selected={selectedTab} onSelect={(index) => navigate(tabs[index].id as View)} />
-
               {reviewStatus?.shouldAsk ? (
                 <Card>
                   <InlineStack align="space-between" blockAlign="center" gap="300">
@@ -1261,7 +1249,9 @@ export function App() {
                               ? t("invoices.title")
                               : view === "queue"
                                 ? t("queue.title")
-                                : t("billing.title")}
+                                : view === "billing"
+                                  ? t("billing.title")
+                                  : t("nav.help")}
                       </Text>
                       <Text as="p" tone="subdued">
                         {view === "orders"
