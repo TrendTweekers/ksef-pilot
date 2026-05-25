@@ -960,7 +960,7 @@ apiRouter.get("/setup/status", loadShop, async (_req, res, next) => {
       {
         id: "billing",
         label: "Billing",
-        done: billing.canGenerate,
+        done: true,
         detail: `${billing.planName} plan, ${billing.limit === null ? `${billing.used} used` : `${billing.used}/${billing.limit} used this month`}.`
       },
       {

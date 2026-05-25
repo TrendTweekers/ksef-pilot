@@ -17,7 +17,31 @@ import {
 } from "@shopify/polaris";
 import { useTranslation } from "react-i18next";
 
-type View = "orders" | "invoices" | "queue" | "settings" | "billing";
+type View = "orders" | "invoices" | "queue" | "settings" | "billing" | "help";
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      "ui-nav-menu": { children?: unknown };
+    }
+  }
+}
+
+const VIEW_TO_PATH: Record<View, string> = {
+  orders: "/",
+  invoices: "/invoices",
+  queue: "/queue",
+  settings: "/settings",
+  billing: "/billing",
+  help: "/help"
+};
+
+function pathToView(pathname: string): View {
+  const match = (Object.entries(VIEW_TO_PATH) as Array<[View, string]>).find(
+    ([, path]) => path !== "/" && pathname.startsWith(path)
+  );
+  return match ? match[0] : "orders";
+}
 type InvoicePeriod = "week" | "month" | "all";
 type QueueStatus = "all" | "pending" | "processing" | "retrying" | "submitted" | "confirmed" | "failed";
 
@@ -210,7 +234,7 @@ function isInstallError(message: string) {
 export function App() {
   const { t, i18n } = useTranslation();
   const shop = useShop();
-  const [view, setView] = useState<View>("orders");
+  const [view, setView] = useState<View>(() => pathToView(window.location.pathname));
   const [token, setToken] = useState("");
   const [settings, setSettings] = useState<SettingsState>({
     sellerNip: "",
@@ -265,6 +289,34 @@ export function App() {
     const separator = path.includes("?") ? "&" : "?";
     return `${path}${separator}shop=${encodeURIComponent(shop)}`;
   }
+
+  // Drive the active view from the URL so the Shopify admin sidebar nav menu and
+  // in-app tabs stay in sync, and deep links / back-forward work.
+  function navigate(nextView: View) {
+    const path = VIEW_TO_PATH[nextView];
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, "", `${path}${window.location.search}`);
+    }
+    setView(nextView);
+  }
+
+  useEffect(() => {
+    const sync = () => setView(pathToView(window.location.pathname));
+    const originalPushState = window.history.pushState.bind(window.history);
+    window.history.pushState = ((...args: Parameters<History["pushState"]>) => {
+      originalPushState(...args);
+      window.dispatchEvent(new Event("ksef:locationchange"));
+    }) as History["pushState"];
+
+    window.addEventListener("popstate", sync);
+    window.addEventListener("ksef:locationchange", sync);
+
+    return () => {
+      window.history.pushState = originalPushState;
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("ksef:locationchange", sync);
+    };
+  }, []);
 
   function updateOrder(orderId: string, update: Partial<OrderRow>) {
     setOrders((current) => current.map((order) => (order.id === orderId ? { ...order, ...update } : order)));
@@ -985,7 +1037,8 @@ export function App() {
     { id: "invoices", content: t("nav.invoices") },
     { id: "queue", content: t("nav.queue") },
     { id: "settings", content: t("nav.settings") },
-    { id: "billing", content: t("nav.billing") }
+    { id: "billing", content: t("nav.billing") },
+    { id: "help", content: t("nav.help") }
   ];
   const selectedTab = tabs.findIndex((tab) => tab.id === view);
   const b2bCount = orders.filter((order) => order.isB2b).length;
@@ -1079,6 +1132,14 @@ export function App() {
 
   return (
     <>
+      <ui-nav-menu>
+        <a href="/" rel="home">{t("nav.orders")}</a>
+        <a href="/invoices">{t("nav.invoices")}</a>
+        <a href="/queue">{t("nav.queue")}</a>
+        <a href="/settings">{t("nav.settings")}</a>
+        <a href="/billing">{t("nav.billing")}</a>
+        <a href="/help">{t("nav.help")}</a>
+      </ui-nav-menu>
       <Page title={t("home.title")} subtitle={t("home.tagline")}>
         <Layout>
           <Layout.Section>
@@ -1123,7 +1184,7 @@ export function App() {
                 </div>
               </div>
 
-              <Tabs tabs={tabs} selected={selectedTab} onSelect={(index) => setView(tabs[index].id as View)} />
+              <Tabs tabs={tabs} selected={selectedTab} onSelect={(index) => navigate(tabs[index].id as View)} />
 
               {reviewStatus?.shouldAsk ? (
                 <Card>
@@ -1164,21 +1225,25 @@ export function App() {
                         {`${setupStatus.items.filter((item) => item.done).length}/${setupStatus.items.length}`}
                       </Badge>
                     </InlineStack>
-                    <div className="setup-grid">
-                      {setupStatus.items.map((item) => (
-                        <div className={item.done ? "setup-item done" : "setup-item"} key={item.id}>
-                          <span>{item.done ? t("common.done") : t("common.open")}</span>
-                          <Text as="h3" variant="headingSm">
-                            {t(`setup.${item.id}`, { defaultValue: item.label })}
-                          </Text>
-                          <Text as="p" tone="subdued">
-                            {t(`setupDetails.${item.id}.${item.done ? "done" : "open"}`, {
-                              defaultValue: item.detail
-                            })}
-                          </Text>
-                        </div>
-                      ))}
-                    </div>
+                    {setupStatus.complete ? (
+                      <Banner tone="success">{t("setup.complete")}</Banner>
+                    ) : (
+                      <div className="setup-grid">
+                        {setupStatus.items.map((item) => (
+                          <div className={item.done ? "setup-item done" : "setup-item"} key={item.id}>
+                            <span>{item.done ? t("common.done") : t("common.open")}</span>
+                            <Text as="h3" variant="headingSm">
+                              {t(`setup.${item.id}`, { defaultValue: item.label })}
+                            </Text>
+                            <Text as="p" tone="subdued">
+                              {t(`setupDetails.${item.id}.${item.done ? "done" : "open"}`, {
+                                defaultValue: item.detail
+                              })}
+                            </Text>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </BlockStack>
                 </Card>
               ) : null}
@@ -2084,6 +2149,31 @@ export function App() {
                           </div>
                         ))}
                       </div>
+                    </BlockStack>
+                  ) : null}
+
+                  {view === "help" ? (
+                    <BlockStack gap="400">
+                      <Banner tone="info">{t("help.intro")}</Banner>
+                      <div className="onboarding-steps">
+                        {["find", "draft", "validate", "export", "track"].map((step, index) => (
+                          <div className="onboarding-step" key={step}>
+                            <span>{index + 1}</span>
+                            <div>
+                              <Text as="h3" variant="headingSm">
+                                {t(`help.steps.${step}.title`)}
+                              </Text>
+                              <Text as="p" tone="subdued">
+                                {t(`help.steps.${step}.body`)}
+                              </Text>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <Banner tone="warning">{t("help.testVsLive")}</Banner>
+                      <Text as="p" tone="subdued">
+                        {t("help.support")}
+                      </Text>
                     </BlockStack>
                   ) : null}
                 </BlockStack>

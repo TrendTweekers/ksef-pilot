@@ -34,7 +34,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           invoices: "Faktury",
           queue: "Kolejka KSeF",
           settings: "Ustawienia KSeF",
-          billing: "Rozliczenia"
+          billing: "Rozliczenia",
+          help: "Jak to działa"
         },
         install: {
           connect: "Połącz sklep Shopify"
@@ -62,8 +63,9 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           later: "Nie teraz"
         },
         setup: {
-          title: "Lista konfiguracji",
-          description: "Najważniejsze kroki przed prawdziwą wysyłką do KSeF.",
+          title: "Pierwsze kroki",
+          description: "Jednorazowy przewodnik po funkcjach aplikacji. Bieżący status zamówień i faktur znajdziesz w zakładkach Zamówienia i Faktury.",
+          complete: "Konfiguracja zakończona. Bieżący status faktur śledź w zakładkach Zamówienia i Faktury.",
           seller: "Dane sprzedawcy",
           billing: "Rozliczenia",
           orders: "Pierwszy szkic faktury",
@@ -101,6 +103,35 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             done: "Pełny test przepływu KSeF został wykonany bez wysyłki do rządowego API.",
             open: "Wyślij jeden zwalidowany szkic w trybie testowym. Aplikacja utworzy lokalny numer testowy i nie wyśle nic do KSeF."
           }
+        },
+        help: {
+          intro:
+            "KSeF Pilot zamienia zamówienia B2B z Shopify w polskie e-faktury FA(3) dla KSeF. Oto jak korzystać z aplikacji krok po kroku.",
+          steps: {
+            find: {
+              title: "1. Znajdź zamówienia B2B",
+              body: "W zakładce Zamówienia zaznacz zamówienia B2B i uzupełnij NIP nabywcy. Aplikacja podpowiada NIP z danych B2B Company, metapól zamówienia/klienta i zapamiętanych profili nabywcy."
+            },
+            draft: {
+              title: "2. Utwórz szkic faktury",
+              body: "Wygeneruj szkic faktury FA(3). To tworzy lokalny rekord i plik XML — nic nie jest jeszcze wysyłane do KSeF."
+            },
+            validate: {
+              title: "3. Zwaliduj FA(3)",
+              body: "W zakładce Faktury zwaliduj każdy szkic oficjalną schemą FA(3) przed wysyłką. Status walidacji widać przy każdej fakturze."
+            },
+            export: {
+              title: "4. Wyeksportuj lub wyślij",
+              body: "Pobierz XML/PDF lub paczkę ZIP dla księgowości, albo wyślij fakturę do KSeF. W trybie testowym nic nie trafia do urzędu; tryb live wymaga połączonego tokenu KSeF."
+            },
+            track: {
+              title: "5. Śledź status",
+              body: "W zakładce Kolejka KSeF sprawdzaj status wysyłki i pobieraj urzędowe potwierdzenie UPO."
+            }
+          },
+          testVsLive:
+            "Bezpieczny tryb testowy: wysyłka tworzy lokalny numer testowy i nie wysyła nic do KSeF. Wyłącz tryb testowy dopiero, gdy token i dane są gotowe do prawdziwej wysyłki.",
+          support: "Potrzebujesz pomocy? Otwórz stronę wsparcia aplikacji lub napisz do pomocy KSeF Pilot."
         },
         settings: {
           title: "Ustawienia KSeF",
@@ -419,7 +450,8 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           invoices: "Invoices",
           queue: "KSeF Queue",
           settings: "KSeF Settings",
-          billing: "Billing"
+          billing: "Billing",
+          help: "How it works"
         },
         install: {
           connect: "Connect Shopify store"
@@ -447,8 +479,9 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           later: "Not now"
         },
         setup: {
-          title: "Setup checklist",
-          description: "Keep the compliance path visible before live KSeF submission.",
+          title: "Getting started",
+          description: "A one-time walkthrough of the app's features. Your day-to-day order and invoice status lives in the Orders and Invoices tabs.",
+          complete: "Setup complete. Track ongoing invoice status in the Orders and Invoices tabs.",
           seller: "Seller identity",
           billing: "Billing",
           orders: "First draft invoice",
@@ -486,6 +519,35 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             done: "The full KSeF workflow was rehearsed without calling the government API.",
             open: "Submit one validated draft while test mode is on. The app creates a local test number and sends nothing to KSeF."
           }
+        },
+        help: {
+          intro:
+            "KSeF Pilot turns B2B Shopify orders into Polish FA(3) e-invoices for KSeF. Here's how to use the app step by step.",
+          steps: {
+            find: {
+              title: "1. Find B2B orders",
+              body: "In the Orders tab, mark B2B orders and fill in the buyer NIP. The app prefills the NIP from Shopify B2B Company data, order/customer metafields, and remembered buyer profiles."
+            },
+            draft: {
+              title: "2. Create a draft invoice",
+              body: "Generate a draft FA(3) invoice. This creates a local record and XML file — nothing is sent to KSeF yet."
+            },
+            validate: {
+              title: "3. Validate FA(3)",
+              body: "In the Invoices tab, validate each draft against the official FA(3) schema before submitting. Each invoice shows its validation status."
+            },
+            export: {
+              title: "4. Export or submit",
+              body: "Download XML/PDF or a ZIP packet for your accountant, or submit the invoice to KSeF. In Safe test mode nothing reaches the government; live mode requires a connected KSeF token."
+            },
+            track: {
+              title: "5. Track status",
+              body: "In the KSeF Queue tab, watch submission status and download the official UPO confirmation."
+            }
+          },
+          testVsLive:
+            "Safe test mode: submitting creates a local test number and sends nothing to KSeF. Turn test mode off only once your token and data are ready for real submission.",
+          support: "Need help? Open the app's support page or email KSeF Pilot support."
         },
         settings: {
           title: "KSeF Settings",
