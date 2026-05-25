@@ -16,7 +16,6 @@ import {
   TextField
 } from "@shopify/polaris";
 import { useTranslation } from "react-i18next";
-import { AppBridgeBootstrap } from "./components/AppBridgeBootstrap";
 
 type View = "orders" | "invoices" | "queue" | "settings" | "billing";
 type InvoicePeriod = "week" | "month" | "all";
@@ -148,46 +147,6 @@ interface QueueResponse {
   submissions: QueueSubmission[];
 }
 
-interface AutomationHealth {
-  workerSecretConfigured: boolean;
-  workerAutorunEnabled: boolean;
-  productionRequiresWorkerSecret: boolean;
-  liveSubmissionEnabled: boolean;
-  retryEndpoint: string;
-  statusRefreshEndpoint: string;
-  dueRetries: number;
-  pendingStatusRefreshes: number;
-  failedSubmissions: number;
-  checkedAt: string;
-  worker?: {
-    autorun: boolean;
-    running: boolean;
-    intervalSeconds: number;
-    batchLimit: number;
-    lastStartedAt: string | null;
-    lastFinishedAt: string | null;
-    lastError: string | null;
-    lastRetryProcessed: number;
-    lastStatusProcessed: number;
-  };
-}
-
-interface OwnerReadiness {
-  complete: boolean;
-  checkedAt: string;
-  items: Array<{
-    id: string;
-    label: string;
-    ok: boolean;
-    detail: string;
-  }>;
-  webhooks: Array<{
-    topic: string;
-    installed: boolean;
-    callbackUrl: string | null;
-  }>;
-}
-
 interface BillingSummary {
   plan: string;
   storedPlan: string;
@@ -301,8 +260,6 @@ export function App() {
   const [queueLoading, setQueueLoading] = useState(false);
   const [queueError, setQueueError] = useState("");
   const [queueActionId, setQueueActionId] = useState<string | null>(null);
-  const [automationHealth, setAutomationHealth] = useState<AutomationHealth | null>(null);
-  const [ownerReadiness, setOwnerReadiness] = useState<OwnerReadiness | null>(null);
 
   function apiPath(path: string) {
     const separator = path.includes("?") ? "&" : "?";
@@ -421,24 +378,6 @@ export function App() {
     }
   }
 
-  async function loadAutomationHealth() {
-    if (!shop) return;
-
-    const response = await fetch(apiPath("/api/ksef/automation-health"));
-    if (response.ok) {
-      setAutomationHealth((await response.json()) as AutomationHealth);
-    }
-  }
-
-  async function loadOwnerReadiness() {
-    if (!shop) return;
-
-    const response = await fetch(apiPath("/api/owner/readiness"));
-    if (response.ok) {
-      setOwnerReadiness((await response.json()) as OwnerReadiness);
-    }
-  }
-
   async function loadBilling() {
     if (!shop) return;
 
@@ -498,8 +437,6 @@ export function App() {
   useEffect(() => {
     if (view === "queue") {
       void loadQueue();
-      void loadAutomationHealth();
-      void loadOwnerReadiness();
     }
   }, [shop, queueStatus, view]);
 
@@ -690,12 +627,43 @@ export function App() {
     }
   }
 
-  function downloadInvoice(invoice: InvoiceRow) {
-    window.open(apiPath(`/api/invoices/${invoice.id}/xml`), "_blank");
+  async function downloadFile(path: string, fallbackName: string) {
+    const response = await fetch(apiPath(path));
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(payload.error ?? t("invoices.openError"));
+    }
+
+    const disposition = response.headers.get("Content-Disposition");
+    const filename = disposition?.match(/filename="?([^"]+)"?/i)?.[1] ?? fallbackName;
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   }
 
-  function downloadInvoicePdf(invoice: InvoiceRow) {
-    window.open(apiPath(`/api/invoices/${invoice.id}/pdf`), "_blank");
+  async function downloadInvoice(invoice: InvoiceRow) {
+    setInvoiceError("");
+    try {
+      await downloadFile(`/api/invoices/${invoice.id}/xml`, `${invoice.orderName}.xml`);
+    } catch (error) {
+      setInvoiceError(error instanceof Error ? error.message : t("invoices.openError"));
+    }
+  }
+
+  async function downloadInvoicePdf(invoice: InvoiceRow) {
+    setInvoiceError("");
+    try {
+      await downloadFile(`/api/invoices/${invoice.id}/pdf`, `${invoice.orderName}.pdf`);
+    } catch (error) {
+      setInvoiceError(error instanceof Error ? error.message : t("invoices.openError"));
+    }
   }
 
   async function emailInvoice(invoice: InvoiceRow) {
@@ -723,13 +691,16 @@ export function App() {
     }
   }
 
-  function downloadInvoiceZip() {
-    window.open(apiPath(`/api/invoices/export.zip?period=${invoicePeriod}`), "_blank");
-    setTimeout(() => {
+  async function downloadInvoiceZip() {
+    setInvoiceError("");
+    try {
+      await downloadFile(`/api/invoices/export.zip?period=${invoicePeriod}`, `ksef-pilot-${invoicePeriod}.zip`);
       void loadInvoices();
       void loadReviewStatus();
       void loadSetupStatus();
-    }, 1200);
+    } catch (error) {
+      setInvoiceError(error instanceof Error ? error.message : t("invoices.openError"));
+    }
   }
 
   async function submitInvoice(invoice: InvoiceRow) {
@@ -788,7 +759,6 @@ export function App() {
       }
 
       await loadQueue();
-      void loadAutomationHealth();
       void loadInvoices();
       void loadSetupStatus();
     } catch (error) {
@@ -810,7 +780,6 @@ export function App() {
       }
 
       await loadQueue();
-      void loadAutomationHealth();
       void loadInvoices();
       void loadSetupStatus();
     } catch (error) {
@@ -820,8 +789,13 @@ export function App() {
     }
   }
 
-  function downloadInvoiceUpo(invoice: InvoiceRow) {
-    window.open(apiPath(`/api/invoices/${invoice.id}/upo.xml`), "_blank");
+  async function downloadInvoiceUpo(invoice: InvoiceRow) {
+    setInvoiceError("");
+    try {
+      await downloadFile(`/api/invoices/${invoice.id}/upo.xml`, `${invoice.orderName}-upo.xml`);
+    } catch (error) {
+      setInvoiceError(error instanceof Error ? error.message : t("invoices.openError"));
+    }
   }
 
   async function createCorrection(invoice: InvoiceRow) {
@@ -1075,7 +1049,6 @@ export function App() {
 
   return (
     <>
-      <AppBridgeBootstrap />
       <Page title={t("home.title")} subtitle={t("home.tagline")}>
         <Layout>
           <Layout.Section>
@@ -1899,111 +1872,6 @@ export function App() {
                   {view === "queue" ? (
                     <BlockStack gap="400">
                       <Banner tone="info">{t("queue.help")}</Banner>
-                      {automationHealth ? (
-                        <div className="automation-health">
-                          <InlineStack align="space-between" blockAlign="center" gap="300">
-                            <BlockStack gap="100">
-                              <Text as="h3" variant="headingMd">
-                                {t("queue.automationTitle")}
-                              </Text>
-                              <Text as="p" tone="subdued">
-                                {t("queue.automationDescription")}
-                              </Text>
-                            </BlockStack>
-                            <Badge
-                              tone={
-                                automationHealth.workerSecretConfigured || !automationHealth.productionRequiresWorkerSecret
-                                  ? "success"
-                                  : "critical"
-                              }
-                            >
-                              {automationHealth.workerSecretConfigured
-                                ? t("queue.workerSecured")
-                                : t("queue.workerSecretMissing")}
-                            </Badge>
-                          </InlineStack>
-                          <div className="automation-grid">
-                            <div className="automation-item">
-                              <span>{t("queue.liveSubmission")}</span>
-                              <strong>{automationHealth.liveSubmissionEnabled ? t("settings.enabled") : t("settings.disabled")}</strong>
-                            </div>
-                            <div className="automation-item">
-                              <span>{t("queue.workerAutorun")}</span>
-                              <strong>{automationHealth.workerAutorunEnabled ? t("settings.enabled") : t("settings.disabled")}</strong>
-                            </div>
-                            <div className="automation-item">
-                              <span>{t("queue.dueRetries")}</span>
-                              <strong>{automationHealth.dueRetries}</strong>
-                            </div>
-                            <div className="automation-item">
-                              <span>{t("queue.pendingRefreshes")}</span>
-                              <strong>{automationHealth.pendingStatusRefreshes}</strong>
-                            </div>
-                            <div className="automation-item">
-                              <span>{t("queue.failedSubmissions")}</span>
-                              <strong>{automationHealth.failedSubmissions}</strong>
-                            </div>
-                          </div>
-                          <Text as="p" tone="subdued">
-                            {t("queue.workerEndpoints", {
-                              retry: automationHealth.retryEndpoint,
-                              refresh: automationHealth.statusRefreshEndpoint
-                            })}
-                          </Text>
-                          {automationHealth.worker ? (
-                            <div className="worker-runtime">
-                              <Text as="p" tone="subdued">
-                                {t("queue.workerRuntime", {
-                                  interval: automationHealth.worker.intervalSeconds,
-                                  limit: automationHealth.worker.batchLimit,
-                                  last:
-                                    automationHealth.worker.lastFinishedAt
-                                      ? new Date(automationHealth.worker.lastFinishedAt).toLocaleString(locale)
-                                      : t("queue.workerNever")
-                                })}
-                              </Text>
-                              {automationHealth.worker.lastError ? (
-                                <Text as="p" tone="critical">
-                                  {automationHealth.worker.lastError}
-                                </Text>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      {ownerReadiness ? (
-                        <div className="launch-readiness">
-                          <InlineStack align="space-between" blockAlign="center" gap="300">
-                            <BlockStack gap="100">
-                              <Text as="h3" variant="headingMd">
-                                {t("queue.launchTitle")}
-                              </Text>
-                              <Text as="p" tone="subdued">
-                                {t("queue.launchDescription")}
-                              </Text>
-                            </BlockStack>
-                            <Badge tone={ownerReadiness.complete ? "success" : "attention"}>
-                              {ownerReadiness.complete ? t("queue.launchReady") : t("queue.launchNeedsWork")}
-                            </Badge>
-                          </InlineStack>
-                          <div className="launch-grid">
-                            {ownerReadiness.items.map((item) => (
-                              <div className={item.ok ? "launch-item ok" : "launch-item warn"} key={item.id}>
-                                <span>{item.ok ? t("common.done") : t("common.open")}</span>
-                                <Text as="h4" variant="headingSm">
-                                  {item.label}
-                                </Text>
-                                <Text as="p" tone="subdued">
-                                  {item.detail}
-                                </Text>
-                              </div>
-                            ))}
-                          </div>
-                          <Text as="p" tone="subdued">
-                            {t("queue.launchChecked", { date: new Date(ownerReadiness.checkedAt).toLocaleString(locale) })}
-                          </Text>
-                        </div>
-                      ) : null}
                       {queueError ? <Banner tone="critical">{queueError}</Banner> : null}
                       {queue ? (
                         <div className="queue-summary">

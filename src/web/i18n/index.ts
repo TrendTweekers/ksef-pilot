@@ -149,7 +149,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           testModeHelp:
             "Włączone: przycisk wysyłki tworzy lokalny numer testowy i nie wysyła nic do KSeF. Wyłącz dopiero po podłączeniu prawdziwego tokenu.",
           liveAckBanner:
-            "Wyłączenie trybu testowego odblokowuje prawdziwą ścieżkę KSeF. Serwer nadal zablokuje wysyłkę, jeśli token, NIP lub konfiguracja Railway nie są gotowe.",
+            "Wyłączenie trybu testowego odblokowuje prawdziwą ścieżkę KSeF. Aplikacja nadal zablokuje wysyłkę, jeśli token lub NIP sprzedawcy nie są gotowe.",
           liveAck: "Rozumiem, że po zapisaniu trybu live zwalidowane faktury mogą zostać wysłane do KSeF.",
           sellerNip: "NIP sprzedawcy",
           sellerNipHelp: "Do testów możesz wpisać dowolne 10 cyfr, na przykład 1234567890.",
@@ -188,10 +188,10 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           yes: "Tak",
           no: "Nie",
           liveServerDisabledBanner:
-            "Tryb live jest wybrany w sklepie, ale serwer Railway nie ma jeszcze włączonej zmiennej KSEF_LIVE_SUBMISSION_ENABLED. Faktury nie zostaną wysłane do KSeF.",
+            "Tryb live jest wybrany w sklepie, ale wysyłka na żywo nie jest jeszcze włączona w aplikacji. Faktury nie zostaną wysłane do KSeF.",
           readinessIssues: {
             test_mode_on: "Wyłącz tryb testowy dopiero wtedy, gdy chcesz wysyłać prawdziwe faktury.",
-            server_live_disabled: "Ustaw KSEF_LIVE_SUBMISSION_ENABLED=true w Railway, aby dopuścić prawdziwą wysyłkę.",
+            server_live_disabled: "Wysyłka na żywo jest tymczasowo wyłączona w aplikacji. Skontaktuj się z pomocą KSeF Pilot, aby ją włączyć.",
             token_missing: "Wklej i zapisz token API KSeF sprzedawcy.",
             token_not_connected: "Token jest zapisany, ale test połączenia nie zakończył się sukcesem.",
             seller_nip_missing: "Dodaj NIP sprzedawcy w ustawieniach."
@@ -220,7 +220,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           rememberedNips: "KSeF Pilot szuka NIP w Shopify B2B Company, metafieldach zamówienia/klienta i zapamiętanych profilach nabywcy.",
           recentWindow:
             "Aplikacja skanuje do {{count}} najnowszych zamówień widocznych w Shopify API. Teraz odczytano {{scanned}}. Eksport tygodniowy i miesięczny działa na utworzonych szkicach faktur. {{suffix}}",
-          recentWindowMore: "Sklep ma więcej zamówień; zwiększ SHOPIFY_ORDER_SCAN_LIMIT w Railway, jeśli trzeba sięgać głębiej.",
+          recentWindowMore: "Sklep ma więcej zamówień niż mieści to okno. Utwórz szkice dla potrzebnych zamówień lub odśwież później.",
           blockedSummary:
             "{{count}} zamówienie/zamówienia B2B wymaga ręcznego wystawienia, bo zawiera VAT poza obecnym zakresem MVP.",
           blockedTitle: "Zamówienia do ręcznego wystawienia",
@@ -534,7 +534,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           testModeHelp:
             "On: submit creates a local test number and sends nothing to KSeF. Turn it off only after connecting a real token.",
           liveAckBanner:
-            "Turning test mode off unlocks the real KSeF path. The server will still block submission if the token, seller NIP, or Railway config is not ready.",
+            "Turning test mode off unlocks the real KSeF path. The app will still block submission if the token or seller NIP is not ready.",
           liveAck: "I understand that after saving live mode, validated invoices may be submitted to KSeF.",
           sellerNip: "Seller NIP",
           sellerNipHelp: "For dev testing you can use any 10 digits, for example 1234567890.",
@@ -573,10 +573,10 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           yes: "Yes",
           no: "No",
           liveServerDisabledBanner:
-            "Live mode is selected in the shop, but the Railway server does not have KSEF_LIVE_SUBMISSION_ENABLED turned on yet. Invoices will not be submitted to KSeF.",
+            "Live mode is selected in the shop, but live submission is not enabled in the app yet. Invoices will not be submitted to KSeF.",
           readinessIssues: {
             test_mode_on: "Turn test mode off only when you are ready to submit real invoices.",
-            server_live_disabled: "Set KSEF_LIVE_SUBMISSION_ENABLED=true in Railway to allow real submission.",
+            server_live_disabled: "Live submission is temporarily disabled in the app. Contact KSeF Pilot support to enable it.",
             token_missing: "Paste and save the merchant's KSeF API token.",
             token_not_connected: "A token is saved, but the connection test has not passed.",
             seller_nip_missing: "Add the seller NIP in settings."
@@ -605,7 +605,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           rememberedNips: "KSeF Pilot looks for NIP in Shopify B2B Company, order/customer metafields, and remembered buyer profiles.",
           recentWindow:
             "The app scans up to {{count}} newest orders visible to the Shopify API. It read {{scanned}} this time. Weekly and monthly exports work from the draft invoices you create. {{suffix}}",
-          recentWindowMore: "This shop has more orders; increase SHOPIFY_ORDER_SCAN_LIMIT in Railway if you need to scan deeper.",
+          recentWindowMore: "This shop has more orders than this window shows. Create drafts for the orders you need, or refresh later.",
           blockedSummary:
             "{{count}} B2B order(s) need manual invoicing because VAT is outside the current MVP scope.",
           blockedTitle: "Orders to invoice manually",

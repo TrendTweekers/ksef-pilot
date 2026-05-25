@@ -50,6 +50,97 @@ export function verifyShopifyHmac(query: Record<string, unknown>) {
   return expected.length === received.length && crypto.timingSafeEqual(expected, received);
 }
 
+interface SessionTokenPayload {
+  iss?: string;
+  dest?: string;
+  aud?: string;
+  sub?: string;
+  exp?: number;
+  nbf?: number;
+  iat?: number;
+  jti?: string;
+  sid?: string;
+}
+
+function base64UrlToBuffer(value: string) {
+  return Buffer.from(value.replace(/-/g, "+").replace(/_/g, "/"), "base64");
+}
+
+// Verifies a Shopify App Bridge session token (HS256 JWT signed with the app secret).
+// Returns the decoded payload only when the signature, algorithm, audience and lifetime all check out.
+export function verifySessionToken(token: string): SessionTokenPayload | null {
+  const parts = token.split(".");
+  if (parts.length !== 3) {
+    return null;
+  }
+
+  const [headerSegment, payloadSegment, signatureSegment] = parts;
+
+  let header: { alg?: string; typ?: string };
+  try {
+    header = JSON.parse(base64UrlToBuffer(headerSegment).toString("utf8"));
+  } catch {
+    return null;
+  }
+
+  if (header.alg !== "HS256") {
+    return null;
+  }
+
+  const expected = crypto
+    .createHmac("sha256", env.SHOPIFY_API_SECRET)
+    .update(`${headerSegment}.${payloadSegment}`)
+    .digest();
+  const received = base64UrlToBuffer(signatureSegment);
+
+  if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
+    return null;
+  }
+
+  let payload: SessionTokenPayload;
+  try {
+    payload = JSON.parse(base64UrlToBuffer(payloadSegment).toString("utf8"));
+  } catch {
+    return null;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const leeway = 5;
+
+  if (typeof payload.exp !== "number" || payload.exp <= now - leeway) {
+    return null;
+  }
+  if (typeof payload.nbf === "number" && payload.nbf > now + leeway) {
+    return null;
+  }
+  if (payload.aud !== env.SHOPIFY_API_KEY) {
+    return null;
+  }
+
+  try {
+    if (new URL(String(payload.iss)).host !== new URL(String(payload.dest)).host) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  return payload;
+}
+
+export function shopFromSessionToken(token: string) {
+  const payload = verifySessionToken(token);
+  if (!payload?.dest) {
+    return null;
+  }
+
+  try {
+    return normalizeShop(new URL(payload.dest).host);
+  } catch {
+    return null;
+  }
+}
+
 export async function exchangeCodeForAccessToken(shop: string, code: string) {
   const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
     method: "POST",

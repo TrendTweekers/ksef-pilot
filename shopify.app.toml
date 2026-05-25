@@ -1,0 +1,36 @@
+# Shopify app configuration.
+#
+# Purpose of this file today: declare the MANDATORY COMPLIANCE (GDPR) webhooks,
+# which cannot be registered through the Admin API and must be set at the app
+# level (here, or in the Partner/Dev Dashboard). The app's operational webhooks
+# (app/uninstalled, app_subscriptions/update, refunds/create, orders/edited,
+# orders/updated) are registered per-shop at install time by registerCoreWebhooks,
+# so they are intentionally NOT duplicated here.
+#
+# To apply:
+#   1. Set `client_id` below to your app's Client ID (Partner Dashboard > your app
+#      > API access; same value as SHOPIFY_API_KEY). It is not a secret.
+#   2. Run `shopify app config link` to bind this file to the existing app, then
+#      `shopify app deploy` to push the compliance webhook subscriptions.
+#   (Alternatively, set the same three compliance topic URLs in the Dashboard.)
+
+client_id = "REPLACE_WITH_YOUR_SHOPIFY_CLIENT_ID"
+name = "KSeF Pilot"
+handle = "ksef-pilot"
+application_url = "https://ksef-pilot-production.up.railway.app"
+embedded = true
+
+[access_scopes]
+scopes = "read_orders,read_customers,read_products"
+
+[auth]
+redirect_urls = [
+  "https://ksef-pilot-production.up.railway.app/auth/callback"
+]
+
+[webhooks]
+api_version = "2026-04"
+
+[[webhooks.subscriptions]]
+compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+uri = "https://ksef-pilot-production.up.railway.app/webhooks/shopify"
