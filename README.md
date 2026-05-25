@@ -80,6 +80,8 @@ The next implementation slices are App Store polish, deeper self-serve KSeF onbo
 
 `railway.json` runs `npm run prisma:deploy` before starting the new process. This keeps schema changes ahead of the deployed code.
 
+Before applying Railway variable changes, review `docs/railway-production-variables.md`. Local KSeF DEMO smoke-test variables must not be deployed to the production Shopify app by accident.
+
 Operational health endpoints:
 
 ```text
@@ -139,6 +141,8 @@ ORDERS_UPDATED
 ```
 
 The KSeF Queue tab shows whether these runtime webhooks are installed for the current shop. Privacy webhooks are app-level compliance URLs and should still be configured in the Partner Dashboard.
+
+See `docs/shopify-app-store-review-prep.md` for the full App Store review checklist, reviewer workflow, data-protection notes, and asset list.
 
 ## App Store URLs
 

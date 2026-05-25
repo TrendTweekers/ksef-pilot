@@ -13,14 +13,14 @@ Reference sources reviewed for KSeF Pilot:
 - `supabase/functions/ksef-upo/index.ts`: reference for UPO retrieval. Important: KSeF 2.0 UPO lookup needs the original session reference.
 - `supabase/functions/ksef-queue-worker/index.ts`: reference for retries, stale processing cleanup, and one-invoice-per-seller pacing.
 - `src/services/ksef/errorTranslator.ts`: useful merchant-facing error translation patterns.
-- `https://github.com/Flopsstuff/ksef-client-ts/issues/18`: token auth issue in `ksef-client-ts@0.7.0` on Deno/Supabase test env. KSeF Pilot uses `0.8.0` on Node/Railway, but token/auth errors should remain blocking/non-retryable and easy to diagnose.
+- `https://github.com/Flopsstuff/ksef-client-ts/issues/18`: token auth issue in `ksef-client-ts@0.7.0` on Deno/Supabase test env. KSeF Pilot uses `0.9.0` on Node/Railway, but token/auth errors should remain blocking/non-retryable and easy to diagnose.
 
 ## Ported Into KSeF Pilot
 
-- `ksef-client-ts@0.8.0` is now installed for the Node/Express app.
+- `ksef-client-ts@0.9.0` is now installed for the Node/Express app.
 - Live submission mirrors the FakturaFlow flow at a Shopify-safe level: token auth, online FA(3) session, invoice send, session close, reference storage, and retryable error capture.
 - KSeF status/UPO refresh is implemented for live submissions that have both a session reference and invoice reference.
-- Correction invoice drafts are linked to the original Shopify invoice record. When Shopify refund line items are available, the app builds a partial negative correction from `Refund.refundLineItems`; otherwise it falls back to a full negative correction for refunds/order cancellation.
+- Correction invoice drafts are linked to the original Shopify invoice record. When Shopify refund line items are available, the app builds a partial negative correction from `Refund.refundLineItems`; otherwise it compares original invoice line items to the current Shopify order and creates edit delta correction rows.
 - Shopify `REFUNDS_CREATE`, `ORDERS_EDITED`, and refund-like `ORDERS_UPDATED` webhooks mark existing original invoices as `correction_needed` so the seller sees the work instead of remembering it manually.
 - The Railway retry hook is intentionally small and queue-driven. It processes due retrying invoices and leaves the merchant UI focused on clear order/invoice actions.
 
@@ -38,4 +38,4 @@ Reference sources reviewed for KSeF Pilot:
 - `P_1M` is place of issue, not date.
 - At line level, `P_8B` is quantity, `P_9A` is unit net price, `P_11` is line net amount, and `P_12` is VAT rate.
 - FA(3) element order matters: summary totals and annotations come before `FaWiersz`.
-- For MVP, support only PLN and standard Polish 23% VAT.
+- For MVP, support domestic 23%, 8%, and 5% VAT. PLN invoices are direct. Foreign-currency domestic invoices use NBP Table A exchange rates and FA(3) VAT-in-PLN fields. 0%, zw, WDT/export, reverse charge, split payment, OSS, and unsupported tax-line shapes remain blocked.
