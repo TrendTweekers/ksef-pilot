@@ -86,6 +86,37 @@ read_orders,read_customers,read_products
 
 By default the Orders page scans the newest 250 orders visible to Shopify's Admin API. Set `SHOPIFY_ORDER_SCAN_LIMIT` in Railway if a larger store needs a deeper scan. The app caps this at 500 to keep the embedded UI responsive.
 
+## Shopify Partner Dashboard Setup
+
+Use these values for the Shopify app before testing on a dev store or submitting for review:
+
+```text
+App URL: ${APP_URL}
+Allowed redirection URL: ${APP_URL}/auth/callback
+Embedded app: enabled
+Requested scopes: read_orders,read_customers,read_products
+```
+
+Mandatory privacy webhook endpoints:
+
+```text
+Customer data request: ${APP_URL}/webhooks/shopify
+Customer redact: ${APP_URL}/webhooks/shopify
+Shop redact: ${APP_URL}/webhooks/shopify
+```
+
+Runtime webhooks are registered during OAuth install:
+
+```text
+APP_UNINSTALLED
+APP_SUBSCRIPTIONS_UPDATE
+REFUNDS_CREATE
+ORDERS_EDITED
+ORDERS_UPDATED
+```
+
+The KSeF Queue tab shows whether these runtime webhooks are installed for the current shop. Privacy webhooks are app-level compliance URLs and should still be configured in the Partner Dashboard.
+
 ## App Store URLs
 
 The Railway app serves basic listing/support URLs:
