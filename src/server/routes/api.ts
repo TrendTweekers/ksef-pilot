@@ -757,9 +757,9 @@ apiRouter.get("/orders", loadShop, async (req, res, next) => {
   try {
     const shop = res.locals.shop!;
     const onlyUnprocessedB2b = req.query.onlyUnprocessedB2b === "true";
-    const orders = await fetchShopifyOrders(shop, onlyUnprocessedB2b);
+    const result = await fetchShopifyOrders(shop, onlyUnprocessedB2b);
 
-    res.json({ orders });
+    res.json(result);
   } catch (error) {
     if (error instanceof Error) {
       res.status(400).json({ error: error.message });

@@ -79,6 +79,10 @@ interface ShopifyOrderNode {
 interface ShopifyOrdersResponse {
   orders: {
     nodes: ShopifyOrderNode[];
+    pageInfo: {
+      hasNextPage: boolean;
+      endCursor: string | null;
+    };
   };
 }
 
@@ -281,20 +285,37 @@ function toOrderListItem(
 }
 
 export async function fetchShopifyOrders(shop: Shop, onlyUnprocessedB2b: boolean) {
-  const data = await shopifyGraphql<ShopifyOrdersResponse>(
-    shop.domain,
-    shop.accessToken,
-    `query KsefPilotOrders {
-      orders(first: 100, query: "status:any", sortKey: CREATED_AT, reverse: true) {
-        nodes {
-          ${orderFields}
-        }
-      }
-    }`
-  );
+  const scanLimit = env.SHOPIFY_ORDER_SCAN_LIMIT;
+  const nodes: ShopifyOrderNode[] = [];
+  let cursor: string | null = null;
+  let hasNextPage = true;
 
-  const orderIds = data.orders.nodes.map((order) => order.id);
-  const customerIds = data.orders.nodes.map(customerId).filter((id): id is string => Boolean(id));
+  while (hasNextPage && nodes.length < scanLimit) {
+    const first = Math.min(250, scanLimit - nodes.length);
+    const data: ShopifyOrdersResponse = await shopifyGraphql<ShopifyOrdersResponse>(
+      shop.domain,
+      shop.accessToken,
+      `query KsefPilotOrders($first: Int!, $after: String) {
+        orders(first: $first, after: $after, query: "status:any", sortKey: CREATED_AT, reverse: true) {
+          nodes {
+            ${orderFields}
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }`,
+      { first, after: cursor }
+    );
+
+    nodes.push(...data.orders.nodes);
+    cursor = data.orders.pageInfo.endCursor;
+    hasNextPage = data.orders.pageInfo.hasNextPage && Boolean(cursor);
+  }
+
+  const orderIds = nodes.map((order) => order.id);
+  const customerIds = nodes.map(customerId).filter((id): id is string => Boolean(id));
   const [flags, invoices, buyerProfiles] = await Promise.all([
     prisma.orderFlag.findMany({ where: { shopId: shop.id, orderId: { in: orderIds } } }),
     prisma.ksefInvoice.findMany({
@@ -307,7 +328,7 @@ export async function fetchShopifyOrders(shop: Shop, onlyUnprocessedB2b: boolean
   const flagMap = new Map(flags.map((flag) => [flag.orderId, flag]));
   const invoiceMap = new Map(invoices.map((invoice) => [invoice.orderId, invoice]));
   const buyerProfileMap = new Map(buyerProfiles.map((profile) => [profile.customerId, profile]));
-  const profileBackfills = data.orders.nodes.flatMap((order) => {
+  const profileBackfills = nodes.flatMap((order) => {
     const flag = flagMap.get(order.id);
     const nip = normalizeNip(flag?.nip);
 
@@ -346,9 +367,14 @@ export async function fetchShopifyOrders(shop: Shop, onlyUnprocessedB2b: boolean
   });
 
   await Promise.all(profileBackfills);
-  const orders = data.orders.nodes.map((order) => toOrderListItem(order, flagMap, invoiceMap, buyerProfileMap));
+  const orders = nodes.map((order) => toOrderListItem(order, flagMap, invoiceMap, buyerProfileMap));
 
-  return onlyUnprocessedB2b ? orders.filter((order) => order.isB2b && !order.processed) : orders;
+  return {
+    orders: onlyUnprocessedB2b ? orders.filter((order) => order.isB2b && !order.processed) : orders,
+    scanned: nodes.length,
+    scanLimit,
+    hasMore: hasNextPage
+  };
 }
 
 async function fetchShopifyOrder(shop: Shop, orderId: string) {

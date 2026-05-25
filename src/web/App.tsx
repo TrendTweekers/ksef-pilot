@@ -62,6 +62,13 @@ interface OrderRow {
   unsupportedReason?: "non_pln" | "mixed_vat" | "missing_tax_lines";
 }
 
+interface OrdersResponse {
+  orders: OrderRow[];
+  scanned: number;
+  scanLimit: number;
+  hasMore: boolean;
+}
+
 interface InvoiceRow {
   id: string;
   orderName: string;
@@ -251,6 +258,7 @@ export function App() {
   const [settingsError, setSettingsError] = useState("");
   const [liveSubmissionAcknowledged, setLiveSubmissionAcknowledged] = useState(false);
   const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [orderScan, setOrderScan] = useState<{ scanned: number; scanLimit: number; hasMore: boolean } | null>(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [onlyUnprocessedB2b, setOnlyUnprocessedB2b] = useState(false);
   const [orderError, setOrderError] = useState("");
@@ -346,8 +354,9 @@ export function App() {
         throw new Error(payload.error ?? t("orders.loadError"));
       }
 
-      const result = (await response.json()) as { orders: OrderRow[] };
+      const result = (await response.json()) as OrdersResponse;
       setOrders(result.orders);
+      setOrderScan({ scanned: result.scanned, scanLimit: result.scanLimit, hasMore: result.hasMore });
     } catch (error) {
       setOrderError(error instanceof Error ? error.message : t("orders.loadError"));
     } finally {
@@ -1409,7 +1418,13 @@ export function App() {
                         </Banner>
                       ) : null}
                       <Banner tone="info">{t("orders.rememberedNips")}</Banner>
-                      <Banner tone="info">{t("orders.recentWindow")}</Banner>
+                      <Banner tone="info">
+                        {t("orders.recentWindow", {
+                          count: orderScan?.scanLimit ?? 250,
+                          scanned: orderScan?.scanned ?? 0,
+                          suffix: orderScan?.hasMore ? t("orders.recentWindowMore") : ""
+                        })}
+                      </Banner>
                       {blockedOrderCount ? (
                         <Banner tone="warning">{t("orders.blockedSummary", { count: blockedOrderCount })}</Banner>
                       ) : null}

@@ -9,6 +9,7 @@ const envSchema = z.object({
   SHOPIFY_API_KEY: z.string().min(1),
   SHOPIFY_API_SECRET: z.string().min(1),
   SHOPIFY_SCOPES: z.string().default("read_orders,read_customers,read_products"),
+  SHOPIFY_ORDER_SCAN_LIMIT: z.coerce.number().int().min(25).max(500).default(250),
   ENCRYPTION_KEY: z.string().min(32),
   KSEF_ENVIRONMENT: z.enum(["TEST", "DEMO", "PROD"]).default("TEST"),
   KSEF_API_BASE_URL: z.string().url().optional(),

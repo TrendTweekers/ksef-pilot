@@ -84,6 +84,8 @@ The app requests the minimal MVP scopes:
 read_orders,read_customers,read_products
 ```
 
+By default the Orders page scans the newest 250 orders visible to Shopify's Admin API. Set `SHOPIFY_ORDER_SCAN_LIMIT` in Railway if a larger store needs a deeper scan. The app caps this at 500 to keep the embedded UI responsive.
+
 ## App Store URLs
 
 The Railway app serves basic listing/support URLs:
