@@ -283,6 +283,7 @@ export function App() {
   const [queueLoading, setQueueLoading] = useState(false);
   const [queueError, setQueueError] = useState("");
   const [queueActionId, setQueueActionId] = useState<string | null>(null);
+  const [supportEmail, setSupportEmail] = useState("");
 
   function apiPath(path: string) {
     const separator = path.includes("?") ? "&" : "?";
@@ -315,6 +316,22 @@ export function App() {
       window.removeEventListener("popstate", sync);
       window.removeEventListener("ksef:locationchange", sync);
     };
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const response = await fetch("/api/config");
+        if (response.ok) {
+          const data = (await response.json()) as { supportEmail?: string };
+          if (data.supportEmail) {
+            setSupportEmail(data.supportEmail);
+          }
+        }
+      } catch {
+        // Support email is optional; ignore fetch errors.
+      }
+    })();
   }, []);
 
   function updateOrder(orderId: string, update: Partial<OrderRow>) {
@@ -1174,7 +1191,7 @@ export function App() {
                 </div>
               </div>
 
-              {reviewStatus?.shouldAsk ? (
+              {view === "orders" && reviewStatus?.shouldAsk ? (
                 <Card>
                   <InlineStack align="space-between" blockAlign="center" gap="300">
                     <BlockStack gap="100">
@@ -1197,7 +1214,7 @@ export function App() {
                 </Card>
               ) : null}
 
-              {setupStatus ? (
+              {view === "orders" && setupStatus ? (
                 <Card>
                   <BlockStack gap="300">
                     <InlineStack align="space-between" blockAlign="center">
@@ -2161,8 +2178,27 @@ export function App() {
                         ))}
                       </div>
                       <Banner tone="warning">{t("help.testVsLive")}</Banner>
+                      <BlockStack gap="100">
+                        <Text as="h3" variant="headingSm">
+                          {t("help.notesTitle")}
+                        </Text>
+                        {["email", "correction", "queue", "unsupported"].map((note) => (
+                          <Text as="p" tone="subdued" key={note}>
+                            {t(`help.notes.${note}`)}
+                          </Text>
+                        ))}
+                      </BlockStack>
                       <Text as="p" tone="subdued">
-                        {t("help.support")}
+                        {t("help.needHelp")}{" "}
+                        <a href="/support" target="_blank" rel="noopener noreferrer">
+                          {t("help.supportPageLink")}
+                        </a>
+                        {supportEmail ? (
+                          <>
+                            {" · "}
+                            <a href={`mailto:${supportEmail}`}>{supportEmail}</a>
+                          </>
+                        ) : null}
                       </Text>
                     </BlockStack>
                   ) : null}

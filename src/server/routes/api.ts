@@ -220,7 +220,8 @@ apiRouter.get("/config", (_req, res) => {
     appName: "KSeF Pilot",
     tagline: "Polish e-invoices for Shopify",
     description:
-      "Automate Polish KSeF e-invoices for B2B Shopify orders. Built by FakturaFlow."
+      "Automate Polish KSeF e-invoices for B2B Shopify orders. Built by FakturaFlow.",
+    supportEmail: env.SUPPORT_EMAIL
   });
 });
 

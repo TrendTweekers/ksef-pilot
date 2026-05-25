@@ -131,7 +131,15 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           },
           testVsLive:
             "Bezpieczny tryb testowy: wysyłka tworzy lokalny numer testowy i nie wysyła nic do KSeF. Wyłącz tryb testowy dopiero, gdy token i dane są gotowe do prawdziwej wysyłki.",
-          support: "Potrzebujesz pomocy? Otwórz stronę wsparcia aplikacji lub napisz do pomocy KSeF Pilot."
+          notesTitle: "Warto wiedzieć",
+          notes: {
+            email: "Wyślij do księgowości: w zakładce Faktury wyślij XML i PDF faktury prosto na adres e-mail księgowości (wymaga skonfigurowanej wysyłki e-mail).",
+            correction: "Korekty: z każdej wystawionej faktury możesz wygenerować fakturę korygującą.",
+            queue: "Kolejka KSeF: nieudane wysyłki live ponawiają się automatycznie; możesz też ponowić ręcznie i pobrać UPO.",
+            unsupported: "Zamówienia z VAT poza obsługiwanym zakresem są oznaczane, abyś wystawił je ręcznie."
+          },
+          needHelp: "Potrzebujesz pomocy?",
+          supportPageLink: "Otwórz stronę wsparcia"
         },
         settings: {
           title: "Ustawienia KSeF",
@@ -547,7 +555,15 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           },
           testVsLive:
             "Safe test mode: submitting creates a local test number and sends nothing to KSeF. Turn test mode off only once your token and data are ready for real submission.",
-          support: "Need help? Open the app's support page or email KSeF Pilot support."
+          notesTitle: "Good to know",
+          notes: {
+            email: "Email your accountant: from the Invoices tab, send an invoice's XML and PDF straight to your accounting email (requires email delivery to be configured).",
+            correction: "Corrections: generate a correction invoice from any issued invoice.",
+            queue: "KSeF Queue: failed live submissions retry automatically; you can also retry manually and download the UPO.",
+            unsupported: "Orders with VAT outside the supported range are flagged so you can invoice them manually."
+          },
+          needHelp: "Need help?",
+          supportPageLink: "Open the support page"
         },
         settings: {
           title: "KSeF Settings",
