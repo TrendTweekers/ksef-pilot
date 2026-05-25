@@ -59,6 +59,8 @@ model OrderFlag {
   isB2b       Boolean  @default(false)
   nip         String?
   buyerName   String?
+  buyerJst    Boolean  @default(false)
+  buyerGv     Boolean  @default(false)
   processedAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

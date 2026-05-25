@@ -56,6 +56,8 @@ interface OrderRow {
   buyerName: string;
   buyerNip: string;
   nipSource?: string;
+  buyerJst: boolean;
+  buyerGv: boolean;
   isB2b: boolean;
   processed: boolean;
   invoiceStatus?: string;
@@ -562,7 +564,9 @@ export function App() {
           orderName: order.name,
           isB2b: order.isB2b,
           nip: order.buyerNip,
-          buyerName: order.buyerName
+          buyerName: order.buyerName,
+          buyerJst: order.buyerJst,
+          buyerGv: order.buyerGv
         })
       });
 
@@ -587,7 +591,9 @@ export function App() {
         body: JSON.stringify({
           orderId: order.id,
           buyerNip: order.buyerNip,
-          buyerName: order.buyerName
+          buyerName: order.buyerName,
+          buyerJst: order.buyerJst,
+          buyerGv: order.buyerGv
         })
       });
 
@@ -631,7 +637,9 @@ export function App() {
           body: JSON.stringify({
             orderId: order.id,
             buyerNip: order.buyerNip,
-            buyerName: order.buyerName
+            buyerName: order.buyerName,
+            buyerJst: order.buyerJst,
+            buyerGv: order.buyerGv
           })
         });
 
@@ -1565,6 +1573,18 @@ export function App() {
                                 {t("orders.nipSource", { source: order.nipSource })}
                               </Text>
                             ) : null}
+                            <InlineStack gap="300">
+                              <Checkbox
+                                label={t("orders.buyerJst")}
+                                checked={order.buyerJst}
+                                onChange={(buyerJst) => updateOrder(order.id, { buyerJst })}
+                              />
+                              <Checkbox
+                                label={t("orders.buyerGv")}
+                                checked={order.buyerGv}
+                                onChange={(buyerGv) => updateOrder(order.id, { buyerGv })}
+                              />
+                            </InlineStack>
                             {currencyWarning(order, t) ? (
                               <Text as="p" tone="subdued">
                                 {currencyWarning(order, t)}

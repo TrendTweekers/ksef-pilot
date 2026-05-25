@@ -23,6 +23,8 @@ export interface Fa3InvoiceData {
   buyerNip: string;
   buyerName: string;
   buyerAddress?: string;
+  buyerJst?: boolean;
+  buyerGv?: boolean;
   amountNet: number;
   amountVat: number;
   amountGross: number;
@@ -193,8 +195,8 @@ export function buildFa3Xml(data: Fa3InvoiceData) {
       <fa:KodKraju>PL</fa:KodKraju>
       <fa:AdresL1>${escapeXml(data.buyerAddress ?? "Polska")}</fa:AdresL1>
     </fa:Adres>
-    <fa:JST>2</fa:JST>
-    <fa:GV>2</fa:GV>
+    <fa:JST>${data.buyerJst ? "1" : "2"}</fa:JST>
+    <fa:GV>${data.buyerGv ? "1" : "2"}</fa:GV>
   </fa:Podmiot2>
   <fa:Fa>
     <fa:KodWaluty>${escapeXml(currency)}</fa:KodWaluty>

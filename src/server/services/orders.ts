@@ -155,6 +155,8 @@ export interface OrderListItem {
   buyerName: string;
   buyerNip: string;
   nipSource?: string;
+  buyerJst: boolean;
+  buyerGv: boolean;
   isB2b: boolean;
   processed: boolean;
   invoiceStatus?: string;
@@ -466,6 +468,8 @@ function toOrderListItem(
     buyerName: flag?.buyerName ?? profile?.buyerName ?? buyer.name,
     buyerNip,
     nipSource,
+    buyerJst: flag?.buyerJst ?? false,
+    buyerGv: flag?.buyerGv ?? false,
     isB2b: flag?.isB2b ?? Boolean(buyerNip),
     processed: Boolean(flag?.processedAt ?? invoice),
     invoiceStatus: invoice?.status,
@@ -586,7 +590,7 @@ async function fetchShopifyOrder(shop: Shop, orderId: string) {
   return data.order;
 }
 
-function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyerName: string): Fa3InvoiceData {
+function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyerName: string, options?: { buyerJst?: boolean; buyerGv?: boolean }): Fa3InvoiceData {
   if (!shop.sellerNip || !shop.sellerName) {
     throw new Error("Seller NIP and seller name are required in KSeF Settings before invoice generation.");
   }
@@ -641,6 +645,8 @@ function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyer
     buyerNip,
     buyerName,
     buyerAddress: buyer.address,
+    buyerJst: options?.buyerJst ?? false,
+    buyerGv: options?.buyerGv ?? false,
     amountNet,
     amountVat,
     amountGross,
@@ -680,7 +686,7 @@ function refundCorrectionItems(order: ShopifyOrderNode) {
   });
 }
 
-export async function saveOrderFlag(shop: Shop, input: { orderId: string; orderName: string; isB2b: boolean; nip?: string; buyerName?: string }) {
+export async function saveOrderFlag(shop: Shop, input: { orderId: string; orderName: string; isB2b: boolean; nip?: string; buyerName?: string; buyerJst?: boolean; buyerGv?: boolean }) {
   const flag = await prisma.orderFlag.upsert({
     where: { shopId_orderId: { shopId: shop.id, orderId: input.orderId } },
     create: {
@@ -689,13 +695,17 @@ export async function saveOrderFlag(shop: Shop, input: { orderId: string; orderN
       orderName: input.orderName,
       isB2b: input.isB2b,
       nip: normalizeNip(input.nip),
-      buyerName: input.buyerName
+      buyerName: input.buyerName,
+      buyerJst: input.buyerJst ?? false,
+      buyerGv: input.buyerGv ?? false
     },
     update: {
       orderName: input.orderName,
       isB2b: input.isB2b,
       nip: normalizeNip(input.nip),
-      buyerName: input.buyerName
+      buyerName: input.buyerName,
+      buyerJst: input.buyerJst ?? false,
+      buyerGv: input.buyerGv ?? false
     }
   });
 
@@ -733,7 +743,7 @@ async function rememberBuyerProfile(
   });
 }
 
-export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId: string; buyerNip: string; buyerName: string }) {
+export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId: string; buyerNip: string; buyerName: string; buyerJst?: boolean; buyerGv?: boolean }) {
   const order = await fetchShopifyOrder(shop, input.orderId);
   const buyerNip = normalizeNip(input.buyerNip);
   const buyerName = input.buyerName.trim() || orderBuyer(order).name;
@@ -747,7 +757,7 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
   if (existing) {
     const buyerChanged = existing.nip !== buyerNip || existing.buyerName !== buyerName;
     if (buyerChanged && existing.status === "draft" && !existing.ksefNumber) {
-      const fa3 = orderToFa3(shop, order, buyerNip, buyerName);
+      const fa3 = orderToFa3(shop, order, buyerNip, buyerName, input);
       const validation = validateFa3Input(fa3);
 
       if (!validation.valid) {
@@ -792,6 +802,8 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
           isB2b: true,
           nip: buyerNip,
           buyerName,
+          buyerJst: input.buyerJst ?? false,
+          buyerGv: input.buyerGv ?? false,
           processedAt: new Date()
         },
         update: {
@@ -799,6 +811,8 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
           isB2b: true,
           nip: buyerNip,
           buyerName,
+          buyerJst: input.buyerJst ?? false,
+          buyerGv: input.buyerGv ?? false,
           processedAt: new Date()
         }
       });
@@ -813,7 +827,7 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
 
   await assertCanGenerateInvoice(shop);
 
-  const fa3 = orderToFa3(shop, order, buyerNip, buyerName);
+  const fa3 = orderToFa3(shop, order, buyerNip, buyerName, input);
   const validation = validateFa3Input(fa3);
 
   if (!validation.valid) {
@@ -855,6 +869,8 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
       isB2b: true,
       nip: buyerNip,
       buyerName,
+      buyerJst: input.buyerJst ?? false,
+      buyerGv: input.buyerGv ?? false,
       processedAt: new Date()
     },
     update: {
@@ -862,6 +878,8 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
       isB2b: true,
       nip: buyerNip,
       buyerName,
+      buyerJst: input.buyerJst ?? false,
+      buyerGv: input.buyerGv ?? false,
       processedAt: new Date()
     }
   });

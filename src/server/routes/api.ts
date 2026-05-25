@@ -41,13 +41,17 @@ const orderFlagSchema = z.object({
   orderName: z.string().min(1),
   isB2b: z.boolean(),
   nip: z.string().optional(),
-  buyerName: z.string().optional()
+  buyerName: z.string().optional(),
+  buyerJst: z.boolean().optional(),
+  buyerGv: z.boolean().optional()
 });
 
 const generateInvoiceSchema = z.object({
   orderId: z.string().min(1),
   buyerNip: z.string().regex(/^\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*\d\D*$/),
-  buyerName: z.string().min(1)
+  buyerName: z.string().min(1),
+  buyerJst: z.boolean().optional(),
+  buyerGv: z.boolean().optional()
 });
 
 const correctionSchema = z.object({
