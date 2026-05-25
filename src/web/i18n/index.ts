@@ -215,7 +215,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           devCurrency: "Tryb testowy: zamówienie w {{currency}} zostanie zapisane jako PLN w XML FA(3).",
           billingUnlimited: "Plan {{plan}}: nielimitowane faktury w tym miesiącu.",
           billingUsage: "Plan {{plan}}: wykorzystano {{used}}/{{limit}} faktur w tym miesiącu.",
-          rememberedNips: "Zapisane numery NIP są pamiętane przy kliencie Shopify i uzupełniane w kolejnych zamówieniach B2B.",
+          rememberedNips: "KSeF Pilot szuka NIP w Shopify B2B Company, metafieldach zamówienia/klienta i zapamiętanych profilach nabywcy.",
           recentWindow:
             "Aplikacja skanuje do {{count}} najnowszych zamówień widocznych w Shopify API. Teraz odczytano {{scanned}}. Eksport tygodniowy i miesięczny działa na utworzonych szkicach faktur. {{suffix}}",
           recentWindowMore: "Sklep ma więcej zamówień; zwiększ SHOPIFY_ORDER_SCAN_LIMIT w Railway, jeśli trzeba sięgać głębiej.",
@@ -593,7 +593,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           devCurrency: "Dev mode: this {{currency}} test order will be drafted as PLN for FA(3) XML.",
           billingUnlimited: "{{plan}} plan: unlimited invoices this month.",
           billingUsage: "{{plan}} plan: {{used}}/{{limit}} invoices used this month.",
-          rememberedNips: "Saved buyer NIPs are remembered by Shopify customer and used to prefill future B2B orders.",
+          rememberedNips: "KSeF Pilot looks for NIP in Shopify B2B Company, order/customer metafields, and remembered buyer profiles.",
           recentWindow:
             "The app scans up to {{count}} newest orders visible to the Shopify API. It read {{scanned}} this time. Weekly and monthly exports work from the draft invoices you create. {{suffix}}",
           recentWindowMore: "This shop has more orders; increase SHOPIFY_ORDER_SCAN_LIMIT in Railway if you need to scan deeper.",

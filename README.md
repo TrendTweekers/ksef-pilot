@@ -86,6 +86,8 @@ read_orders,read_customers,read_products
 
 By default the Orders page scans the newest 250 orders visible to Shopify's Admin API. Set `SHOPIFY_ORDER_SCAN_LIMIT` in Railway if a larger store needs a deeper scan. The app caps this at 500 to keep the embedded UI responsive.
 
+KSeF Pilot pre-fills buyer NIP when it can find one in Shopify B2B Company tax registration, company/location external IDs, order metafields, customer metafields, or a remembered buyer profile from earlier manual entry. Supported metafield keys are `custom.nip`, `fakturaflow.nip`, `ksef.nip`, `custom.nip_number`, `custom.vat_id`, `custom.vat_number`, `custom.tax_id`, and `custom.company_nip`.
+
 ## Shopify Partner Dashboard Setup
 
 Use these values for the Shopify app before testing on a dev store or submitting for review:

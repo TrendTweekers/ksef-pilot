@@ -9,8 +9,17 @@ import { assertCanGenerateInvoice } from "./billing.js";
 const CUSTOMER_NIP_METAFIELDS = [
   { namespace: "custom", key: "nip" },
   { namespace: "fakturaflow", key: "nip" },
-  { namespace: "ksef", key: "nip" }
+  { namespace: "ksef", key: "nip" },
+  { namespace: "custom", key: "nip_number" },
+  { namespace: "custom", key: "vat_id" },
+  { namespace: "custom", key: "vat_number" },
+  { namespace: "custom", key: "tax_id" },
+  { namespace: "custom", key: "company_nip" }
 ];
+
+const nipMetafieldKeys = CUSTOMER_NIP_METAFIELDS.map((field) => `${field.namespace}.${field.key}`);
+
+const nipMetafieldKeysGraphql = `[${nipMetafieldKeys.map((key) => `"${key}"`).join(", ")}]`;
 
 interface Money {
   amount: string;
@@ -23,6 +32,52 @@ interface Address {
   city?: string | null;
   zip?: string | null;
   country?: string | null;
+}
+
+interface MetafieldConnection {
+  nodes: Array<{
+    namespace: string;
+    key: string;
+    value: string;
+  }>;
+}
+
+interface CompanyAddress {
+  address1: string;
+  address2?: string | null;
+  city?: string | null;
+  zip?: string | null;
+  country?: string | null;
+  companyName: string;
+  formattedAddress: string[];
+}
+
+interface PurchasingEntityCompany {
+  __typename: "PurchasingCompany";
+  company: {
+    id: string;
+    name: string;
+    externalId?: string | null;
+    metafields: MetafieldConnection;
+  };
+  location: {
+    id: string;
+    name: string;
+    externalId?: string | null;
+    taxRegistrationId?: string | null;
+    billingAddress?: CompanyAddress | null;
+    taxSettings: {
+      taxRegistrationId?: string | null;
+    };
+    metafields: MetafieldConnection;
+  };
+}
+
+interface PurchasingEntityCustomer {
+  __typename: "Customer";
+  id: string;
+  displayName?: string | null;
+  metafields?: MetafieldConnection;
 }
 
 interface ShopifyLineItemNode {
@@ -64,13 +119,14 @@ interface ShopifyOrderNode {
   currencyCode: string;
   taxesIncluded: boolean;
   currentTotalPriceSet: { shopMoney: Money };
+  poNumber?: string | null;
+  metafields: MetafieldConnection;
+  purchasingEntity?: PurchasingEntityCompany | PurchasingEntityCustomer | null;
   customer?: {
     id: string;
     displayName?: string | null;
     defaultAddress?: Address | null;
-    nip1?: { value: string } | null;
-    nip2?: { value: string } | null;
-    nip3?: { value: string } | null;
+    metafields: MetafieldConnection;
   } | null;
   lineItems: { nodes: ShopifyLineItemNode[] };
   refunds?: ShopifyRefundNode[];
@@ -118,6 +174,67 @@ const orderFields = `
       currencyCode
     }
   }
+  poNumber
+  metafields(first: 20, keys: ${nipMetafieldKeysGraphql}) {
+    nodes {
+      namespace
+      key
+      value
+    }
+  }
+  purchasingEntity {
+    __typename
+    ... on Customer {
+      id
+      displayName
+      metafields(first: 20, keys: ${nipMetafieldKeysGraphql}) {
+        nodes {
+          namespace
+          key
+          value
+        }
+      }
+    }
+    ... on PurchasingCompany {
+      company {
+        id
+        name
+        externalId
+        metafields(first: 20, keys: ${nipMetafieldKeysGraphql}) {
+          nodes {
+            namespace
+            key
+            value
+          }
+        }
+      }
+      location {
+        id
+        name
+        externalId
+        taxRegistrationId
+        taxSettings {
+          taxRegistrationId
+        }
+        billingAddress {
+          address1
+          address2
+          city
+          zip
+          country
+          companyName
+          formattedAddress
+        }
+        metafields(first: 20, keys: ${nipMetafieldKeysGraphql}) {
+          nodes {
+            namespace
+            key
+            value
+          }
+        }
+      }
+    }
+  }
   customer {
     id
     displayName
@@ -128,9 +245,13 @@ const orderFields = `
       zip
       country
     }
-    nip1: metafield(namespace: "${CUSTOMER_NIP_METAFIELDS[0].namespace}", key: "${CUSTOMER_NIP_METAFIELDS[0].key}") { value }
-    nip2: metafield(namespace: "${CUSTOMER_NIP_METAFIELDS[1].namespace}", key: "${CUSTOMER_NIP_METAFIELDS[1].key}") { value }
-    nip3: metafield(namespace: "${CUSTOMER_NIP_METAFIELDS[2].namespace}", key: "${CUSTOMER_NIP_METAFIELDS[2].key}") { value }
+    metafields(first: 20, keys: ${nipMetafieldKeysGraphql}) {
+      nodes {
+        namespace
+        key
+        value
+      }
+    }
   }
   lineItems(first: 50) {
     nodes {
@@ -197,6 +318,15 @@ function normalizeNip(value: string | null | undefined) {
   return (value ?? "").replace(/\D/g, "").slice(0, 10);
 }
 
+function firstNip(values: Array<string | null | undefined>) {
+  for (const value of values) {
+    const nip = normalizeNip(value);
+    if (nip.length === 10) return nip;
+  }
+
+  return "";
+}
+
 function addressLine(address?: Address | null) {
   if (!address) return undefined;
   return [address.address1, address.address2, address.zip, address.city, address.country]
@@ -204,8 +334,33 @@ function addressLine(address?: Address | null) {
     .join(", ");
 }
 
-function customerNip(customer: ShopifyOrderNode["customer"]) {
-  return normalizeNip(customer?.nip1?.value ?? customer?.nip2?.value ?? customer?.nip3?.value);
+function companyAddressLine(address?: CompanyAddress | null) {
+  if (!address) return undefined;
+  if (address.formattedAddress?.length) return address.formattedAddress.join(", ");
+  return [address.address1, address.address2, address.zip, address.city, address.country].filter(Boolean).join(", ");
+}
+
+function metafieldNip(metafields?: MetafieldConnection | null) {
+  return firstNip(metafields?.nodes.map((metafield) => metafield.value) ?? []);
+}
+
+function purchasingCompany(order: ShopifyOrderNode) {
+  return order.purchasingEntity?.__typename === "PurchasingCompany" ? order.purchasingEntity : null;
+}
+
+function orderNip(order: ShopifyOrderNode) {
+  const company = purchasingCompany(order);
+
+  return firstNip([
+    company?.location.taxSettings.taxRegistrationId,
+    company?.location.taxRegistrationId,
+    company?.location.externalId,
+    metafieldNip(company?.location.metafields),
+    company?.company.externalId,
+    metafieldNip(company?.company.metafields),
+    metafieldNip(order.metafields),
+    metafieldNip(order.customer?.metafields)
+  ]);
 }
 
 function customerId(order: ShopifyOrderNode) {
@@ -214,12 +369,39 @@ function customerId(order: ShopifyOrderNode) {
 
 function orderBuyer(order: ShopifyOrderNode) {
   const customer = order.customer ?? null;
+  const company = purchasingCompany(order);
 
   return {
-    name: customer?.displayName ?? "Shopify buyer",
-    nip: customerNip(customer),
-    address: addressLine(customer?.defaultAddress)
+    name: company?.location.billingAddress?.companyName || company?.company.name || customer?.displayName || "Shopify buyer",
+    nip: orderNip(order),
+    address: companyAddressLine(company?.location.billingAddress) || addressLine(customer?.defaultAddress)
   };
+}
+
+function buyerNipSource(order: ShopifyOrderNode) {
+  const company = purchasingCompany(order);
+
+  if (firstNip([company?.location.taxSettings.taxRegistrationId, company?.location.taxRegistrationId])) {
+    return "Shopify B2B tax registration";
+  }
+
+  if (firstNip([company?.location.externalId, company?.company.externalId])) {
+    return "Shopify B2B external ID";
+  }
+
+  if (firstNip([metafieldNip(company?.location.metafields), metafieldNip(company?.company.metafields)])) {
+    return "Shopify company metafield";
+  }
+
+  if (metafieldNip(order.metafields)) {
+    return "order metafield";
+  }
+
+  if (metafieldNip(order.customer?.metafields)) {
+    return "customer metafield";
+  }
+
+  return undefined;
 }
 
 function isStandardVat23(rate: number) {
@@ -262,7 +444,7 @@ function toOrderListItem(
   const nipSource = flag?.nip
     ? "saved on order"
     : buyer.nip
-      ? "customer metafield"
+      ? buyerNipSource(order)
       : profile?.nip
         ? "remembered customer"
         : undefined;
