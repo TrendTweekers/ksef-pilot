@@ -77,3 +77,47 @@ await assertValid(
     exchangeRate: 4.321234
   })
 );
+await assertValid(
+  "multi-rate correction invoice",
+  baseInvoice({
+    invoiceNumber: `SMOKE-KOR-${Date.now()}`,
+    invoiceType: "KOR",
+    correctionOfInvoiceNumber: "SMOKE-ORIGINAL",
+    correctionReason: "Smoke-test correction",
+    amountNet: -175,
+    amountVat: -28.25,
+    amountGross: -203.25,
+    lineItems: [
+      {
+        name: "Korekta towaru 23%",
+        unit: "szt.",
+        quantity: 1,
+        unitPrice: -100,
+        vatRate: "23",
+        totalNet: -100,
+        totalVat: -23,
+        totalGross: -123
+      },
+      {
+        name: "Korekta towaru 8%",
+        unit: "szt.",
+        quantity: 1,
+        unitPrice: -50,
+        vatRate: "8",
+        totalNet: -50,
+        totalVat: -4,
+        totalGross: -54
+      },
+      {
+        name: "Korekta towaru 5%",
+        unit: "szt.",
+        quantity: 1,
+        unitPrice: -25,
+        vatRate: "5",
+        totalNet: -25,
+        totalVat: -1.25,
+        totalGross: -26.25
+      }
+    ]
+  })
+);

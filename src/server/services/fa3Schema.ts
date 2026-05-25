@@ -93,7 +93,8 @@ function isKnownDateFacetCompatibilityIssue(issue: SchemaIssue) {
 
   return (
     (path.endsWith("/fa:Naglowek/fa:DataWytworzeniaFa") && isIsoDateTime(value)) ||
-    (path.endsWith("/fa:Fa/fa:P_1") && isIsoDate(value))
+    (path.endsWith("/fa:Fa/fa:P_1") && isIsoDate(value)) ||
+    (path.endsWith("/fa:Fa/fa:DaneFaKorygowanej/fa:DataWystFaKorygowanej") && isIsoDate(value))
   );
 }
 

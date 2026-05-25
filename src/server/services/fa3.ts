@@ -32,6 +32,7 @@ export interface Fa3InvoiceData {
   exchangeRate?: number;
   sourceSystem?: string;
   correctionOfInvoiceNumber?: string;
+  correctionOfIssueDate?: string;
   correctionReason?: string;
   lineItems: Fa3LineItem[];
 }
@@ -103,6 +104,9 @@ export function validateFa3Input(data: Fa3InvoiceData): Fa3ValidationResult {
   }
   if (!data.lineItems.length) errors.push("At least one invoice line item is required.");
   if (data.invoiceType === "KOR" && !data.correctionReason) errors.push("Correction reason is required.");
+  if (data.invoiceType === "KOR" && data.correctionOfIssueDate && !/^\d{4}-\d{2}-\d{2}$/.test(data.correctionOfIssueDate)) {
+    errors.push("Corrected invoice issue date must use YYYY-MM-DD.");
+  }
 
   const net = data.lineItems.reduce((sum, item) => sum + item.totalNet, 0);
   const vat = data.lineItems.reduce((sum, item) => sum + item.totalVat, 0);
@@ -184,7 +188,11 @@ export function buildFa3Xml(data: Fa3InvoiceData) {
     invoiceType === "KOR"
       ? `
     <fa:PrzyczynaKorekty>${escapeXml(data.correctionReason ?? "Korekta faktury")}</fa:PrzyczynaKorekty>
-    <fa:NrFaKorygowanej>${escapeXml(data.correctionOfInvoiceNumber ?? data.invoiceNumber.replace(/-KOR$/, ""))}</fa:NrFaKorygowanej>`
+    <fa:DaneFaKorygowanej>
+      <fa:DataWystFaKorygowanej>${escapeXml(data.correctionOfIssueDate ?? data.issueDate)}</fa:DataWystFaKorygowanej>
+      <fa:NrFaKorygowanej>${escapeXml(data.correctionOfInvoiceNumber ?? data.invoiceNumber.replace(/-KOR$/, ""))}</fa:NrFaKorygowanej>
+      <fa:NrKSeFN>1</fa:NrKSeFN>
+    </fa:DaneFaKorygowanej>`
       : "";
 
   return `<?xml version="1.0" encoding="UTF-8"?>

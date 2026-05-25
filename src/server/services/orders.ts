@@ -1,7 +1,7 @@
 import type { Shop } from "@prisma/client";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
-import type { Fa3InvoiceData } from "./fa3.js";
+import type { Fa3InvoiceData, Fa3LineItem } from "./fa3.js";
 import { buildFa3Xml, validateFa3Input } from "./fa3.js";
 import { shopifyGraphql } from "./shopify.js";
 import { assertCanGenerateInvoice } from "./billing.js";
@@ -443,6 +443,18 @@ function lineTaxAmount(line: ShopifyLineItemNode) {
   return roundMoney(line.taxLines.reduce((sum, taxLine) => sum + toNumber(taxLine.priceSet.shopMoney.amount), 0));
 }
 
+function domesticVatRateFromAmounts(net: number, vat: number): Fa3LineItem["vatRate"] | null {
+  if (Math.abs(net) < 0.005) {
+    return null;
+  }
+
+  const rate = Math.abs(vat / net);
+  if (Math.abs(rate - 0.23) < 0.001) return "23";
+  if (Math.abs(rate - 0.08) < 0.001) return "8";
+  if (Math.abs(rate - 0.05) < 0.001) return "5";
+  return null;
+}
+
 function toOrderListItem(
   order: ShopifyOrderNode,
   flags: Map<string, Awaited<ReturnType<typeof prisma.orderFlag.findMany>>[number]>,
@@ -704,13 +716,18 @@ function refundCorrectionItems(order: ShopifyOrderNode) {
     const quantity = Math.max(1, refundItem.quantity);
     const totalNet = -roundMoney(toNumber(refundItem.subtotalSet.shopMoney.amount));
     const totalVat = -roundMoney(toNumber(refundItem.totalTaxSet.shopMoney.amount));
+    const vatRate = domesticVatRateFromAmounts(totalNet, totalVat);
+
+    if (!vatRate) {
+      throw new Error("Refund correction contains a VAT rate outside the supported 23%, 8%, and 5% range. Issue this correction manually for now.");
+    }
 
     return {
       name: `Korekta refundu: ${refundItem.lineItem.name}`,
       unit: "szt.",
       quantity,
       unitPrice: roundMoney(totalNet / quantity),
-      vatRate: "23" as const,
+      vatRate,
       totalNet,
       totalVat,
       totalGross: roundMoney(totalNet + totalVat)
@@ -976,7 +993,7 @@ export async function generateCorrectionForInvoice(shop: Shop, invoiceId: string
           unit: "szt.",
           quantity: Math.max(1, item.quantity),
           unitPrice,
-          vatRate: item.vatRate as "23",
+          vatRate: item.vatRate as Fa3LineItem["vatRate"],
           totalNet,
           totalVat,
           totalGross: roundMoney(totalNet + totalVat)
@@ -989,6 +1006,18 @@ export async function generateCorrectionForInvoice(shop: Shop, invoiceId: string
   const issueDate = new Date().toISOString().slice(0, 10);
   const originalInvoiceNumber = `KSEF-${original.orderName.replace(/[^A-Za-z0-9-]/g, "")}`;
   const invoiceNumber = `${originalInvoiceNumber}-KOR`;
+  const rate = await exchangeRateForOrder(order);
+  const originalRate =
+    original.exchangeRate && original.exchangeRateDate && original.exchangeRateTableNo
+      ? {
+          currency: original.currency,
+          rate: Number(original.exchangeRate),
+          rateDate: original.exchangeRateDate.toISOString().slice(0, 10),
+          tableNo: original.exchangeRateTableNo,
+          source: "cache" as const
+        }
+      : null;
+  const correctionRate = rate ?? originalRate;
 
   const fa3: Fa3InvoiceData = {
     invoiceNumber,
@@ -1004,9 +1033,11 @@ export async function generateCorrectionForInvoice(shop: Shop, invoiceId: string
     amountNet,
     amountVat,
     amountGross,
-    currency: "PLN",
+    currency: original.currency,
+    exchangeRate: correctionRate?.rate,
     sourceSystem: "KSeF Pilot Shopify",
     correctionOfInvoiceNumber: originalInvoiceNumber,
+    correctionOfIssueDate: original.createdAt.toISOString().slice(0, 10),
     correctionReason: refundedItems.length ? `${reason}. Wykryto pozycje refundu Shopify.` : reason,
     lineItems
   };
@@ -1028,7 +1059,9 @@ export async function generateCorrectionForInvoice(shop: Shop, invoiceId: string
       fa3Xml,
       status: "draft",
       correctionOf: original.id,
+      currency: fa3.currency ?? "PLN",
       totalGross: amountGross,
+      ...exchangeRateData(correctionRate, amountGross),
       items: {
         create: lineItems.map((item) => ({
           name: item.name,
