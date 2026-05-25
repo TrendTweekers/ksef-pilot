@@ -7,7 +7,7 @@ export async function notifyTelegram(message: string) {
     return;
   }
 
-  const text = message.startsWith(appPrefix) ? message : `${appPrefix} — ${message}`;
+  const text = message.startsWith(appPrefix) ? message : `${appPrefix} - ${message}`;
 
   try {
     await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
