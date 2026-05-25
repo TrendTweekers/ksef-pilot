@@ -39,9 +39,15 @@ export function verifyShopifyHmac(query: Record<string, unknown>) {
     .map(([key, value]) => `${key}=${value}`)
     .join("&");
 
-  const digest = crypto.createHmac("sha256", env.SHOPIFY_API_SECRET).update(message).digest("hex");
+  if (!/^[a-f0-9]{64}$/i.test(hmac)) {
+    return false;
+  }
 
-  return crypto.timingSafeEqual(Buffer.from(digest, "hex"), Buffer.from(hmac, "hex"));
+  const digest = crypto.createHmac("sha256", env.SHOPIFY_API_SECRET).update(message).digest("hex");
+  const expected = Buffer.from(digest, "hex");
+  const received = Buffer.from(hmac, "hex");
+
+  return expected.length === received.length && crypto.timingSafeEqual(expected, received);
 }
 
 export async function exchangeCodeForAccessToken(shop: string, code: string) {
