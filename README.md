@@ -257,6 +257,6 @@ Authorization: Bearer <KSEF_WORKER_SECRET>
 
 - KSeF tokens must remain encrypted at rest.
 - FA(3) XML must be validated against the official XSD before any KSeF API submission.
-- Phase 1 supports only standard Polish B2B VAT at 23%.
+- Phase 1 supports PLN domestic B2B invoices with 23%, 8%, and 5% VAT rates. Foreign currency, 0%, exempt, WDT/export, reverse charge, split payment, and OSS are intentionally blocked until implemented safely.
 - The app reads Shopify orders only and must not modify orders.
 - KSeF submission failures should be retried with exponential backoff.

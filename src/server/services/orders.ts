@@ -404,8 +404,16 @@ function buyerNipSource(order: ShopifyOrderNode) {
   return undefined;
 }
 
-function isStandardVat23(rate: number) {
-  return Math.abs(rate - 0.23) < 0.001;
+function domesticVatRateFromTaxLines(taxLines: ShopifyLineItemNode["taxLines"]): "23" | "8" | "5" | null {
+  if (taxLines.length !== 1) {
+    return null;
+  }
+
+  const rate = Number(taxLines[0]?.rate);
+  if (Math.abs(rate - 0.23) < 0.001) return "23";
+  if (Math.abs(rate - 0.08) < 0.001) return "8";
+  if (Math.abs(rate - 0.05) < 0.001) return "5";
+  return null;
 }
 
 function invoiceSupportIssue(order: ShopifyOrderNode): OrderListItem["unsupportedReason"] {
@@ -418,7 +426,7 @@ function invoiceSupportIssue(order: ShopifyOrderNode): OrderListItem["unsupporte
       return "missing_tax_lines";
     }
 
-    if (line.taxLines.some((taxLine) => !isStandardVat23(Number(taxLine.rate)))) {
+    if (!domesticVatRateFromTaxLines(line.taxLines)) {
       return "mixed_vat";
     }
   }
@@ -611,7 +619,7 @@ function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyer
       unit: "szt.",
       quantity,
       unitPrice: roundMoney(net / quantity),
-      vatRate: "23" as const,
+      vatRate: domesticVatRateFromTaxLines(line.taxLines) ?? "23",
       totalNet: net,
       totalVat: vat,
       totalGross: gross

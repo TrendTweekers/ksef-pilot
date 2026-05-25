@@ -63,6 +63,23 @@ function normalizeVatRate(vatRate: Fa3LineItem["vatRate"]) {
   return vatRate === "zw" ? "ZW" : vatRate;
 }
 
+function vatBucketTotals(lineItems: Fa3LineItem[]) {
+  const buckets = {
+    "23": { net: 0, vat: 0, netField: "P_13_1", vatField: "P_14_1" },
+    "8": { net: 0, vat: 0, netField: "P_13_2", vatField: "P_14_2" },
+    "5": { net: 0, vat: 0, netField: "P_13_3", vatField: "P_14_3" }
+  };
+
+  for (const item of lineItems) {
+    if (item.vatRate === "23" || item.vatRate === "8" || item.vatRate === "5") {
+      buckets[item.vatRate].net += item.totalNet;
+      buckets[item.vatRate].vat += item.totalVat;
+    }
+  }
+
+  return buckets;
+}
+
 export function validateFa3Input(data: Fa3InvoiceData): Fa3ValidationResult {
   const errors: string[] = [];
 
@@ -90,7 +107,9 @@ export function validateFa3Input(data: Fa3InvoiceData): Fa3ValidationResult {
 
   for (const [index, item] of data.lineItems.entries()) {
     if (!item.name) errors.push(`Line ${index + 1}: name is required.`);
-    if (item.vatRate !== "23") errors.push(`Line ${index + 1}: MVP supports only 23% VAT.`);
+    if (!["23", "8", "5"].includes(item.vatRate)) {
+      errors.push(`Line ${index + 1}: only domestic 23%, 8%, and 5% VAT rates are supported.`);
+    }
     if (item.quantity <= 0) errors.push(`Line ${index + 1}: quantity must be greater than zero.`);
     if (item.unitPrice < 0 && data.invoiceType !== "KOR") errors.push(`Line ${index + 1}: unit price cannot be negative.`);
   }
@@ -109,6 +128,20 @@ export function buildFa3Xml(data: Fa3InvoiceData) {
   const placeOfIssue = data.placeOfIssue ?? "Warszawa";
   const invoiceType = data.invoiceType ?? "VAT";
   const systemInfo = data.sourceSystem ?? "KSeF Pilot Shopify";
+  const buckets = vatBucketTotals(data.lineItems);
+  const domesticVatSummaryXml = (["23", "8", "5"] as const)
+    .map((rate) => {
+      const bucket = buckets[rate];
+
+      if (Math.abs(bucket.net) < 0.005 && Math.abs(bucket.vat) < 0.005) {
+        return "";
+      }
+
+      return `
+    <fa:${bucket.netField}>${amount(bucket.net)}</fa:${bucket.netField}>
+    <fa:${bucket.vatField}>${amount(bucket.vat)}</fa:${bucket.vatField}>`;
+    })
+    .join("");
 
   const lineItemsXml = data.lineItems
     .map(
@@ -168,8 +201,7 @@ export function buildFa3Xml(data: Fa3InvoiceData) {
     <fa:P_1>${escapeXml(data.issueDate)}</fa:P_1>
     <fa:P_1M>${escapeXml(placeOfIssue)}</fa:P_1M>
     <fa:P_2>${escapeXml(data.invoiceNumber)}</fa:P_2>
-    <fa:P_13_1>${amount(data.amountNet)}</fa:P_13_1>
-    <fa:P_14_1>${amount(data.amountVat)}</fa:P_14_1>
+${domesticVatSummaryXml}
     <fa:P_15>${amount(data.amountGross)}</fa:P_15>
     <fa:Adnotacje>
       <fa:P_16>2</fa:P_16>

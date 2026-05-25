@@ -227,7 +227,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             non_pln:
               "To zamówienie jest w walucie innej niż PLN. Obsługa walut obcych i przeliczeń VAT jest w przygotowaniu — fakturę wystaw ręcznie.",
             mixed_vat:
-              "To zamówienie zawiera stawki VAT inne niż 23%. Obsługa wielu stawek jest w przygotowaniu — fakturę wystaw ręcznie.",
+              "To zamówienie zawiera stawki VAT poza obsługiwanym zakresem 23%, 8% i 5% albo wiele linii podatku na jednej pozycji. Fakturę wystaw ręcznie.",
             missing_tax_lines:
               "To zamówienie ma pozycję bez linii podatku Shopify. Zamówienia zwolnione lub 0% nie są jeszcze obsługiwane — fakturę wystaw ręcznie.",
             default: "To zamówienie nie jest jeszcze obsługiwane przez automatyczne FA(3)."
@@ -605,7 +605,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
             non_pln:
               "This order uses a non-PLN currency. Foreign-currency and VAT conversion support is in progress; issue this invoice manually for now.",
             mixed_vat:
-              "This order contains VAT rates other than 23%. Multi-rate VAT support is in progress; issue this invoice manually for now.",
+              "This order contains VAT rates outside the supported 23%, 8%, and 5% range, or multiple tax lines on one item. Issue this invoice manually for now.",
             missing_tax_lines:
               "This order has a line item without Shopify tax lines. Exempt or 0% orders are not supported yet; issue this invoice manually for now.",
             default: "This order is not yet supported for automatic FA(3) generation."
