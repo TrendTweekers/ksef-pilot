@@ -12,6 +12,14 @@ export default defineConfig({
   },
   build: {
     outDir: "dist/web",
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          shopify: ["@shopify/app-bridge", "@shopify/app-bridge-react", "@shopify/polaris", "@shopify/polaris-icons"],
+          i18n: ["i18next", "i18next-browser-languagedetector", "react-i18next"]
+        }
+      }
+    }
   }
 });

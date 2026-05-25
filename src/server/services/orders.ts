@@ -605,7 +605,7 @@ function orderToFa3(shop: Shop, order: ShopifyOrderNode, buyerNip: string, buyer
   }
 
   if (supportIssue === "mixed_vat") {
-    throw new Error("This order is not yet supported because it contains VAT rates other than 23%. Multi-rate VAT support is in progress; issue this invoice manually for now.");
+    throw new Error("This order is not yet supported because it contains VAT rates outside the supported 23%, 8%, and 5% range, or multiple Shopify tax lines on one item. Issue this invoice manually for now.");
   }
 
   const invoiceCurrency = order.currencyCode === "PLN" ? "PLN" : "PLN";
