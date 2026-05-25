@@ -31,6 +31,7 @@ const ksefSettingsSchema = z.object({
   sellerName: z.string().optional(),
   sellerAddress: z.string().optional(),
   placeOfIssue: z.string().optional(),
+  accountantEmail: z.string().email().or(z.literal("")).optional(),
   ksefTestMode: z.boolean().optional(),
   liveSubmissionAcknowledged: z.boolean().optional()
 });
@@ -258,6 +259,7 @@ apiRouter.get("/ksef/settings", loadShop, async (_req, res) => {
     sellerName: shop.sellerName ?? "",
     sellerAddress: shop.sellerAddress ?? "",
     placeOfIssue: shop.placeOfIssue ?? "",
+    accountantEmail: shop.accountantEmail ?? "",
     ksefTestMode: shop.ksefTestMode,
     readiness: buildKsefReadiness(shop)
   });
@@ -285,6 +287,7 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
         sellerName: shop.sellerName ?? "",
         sellerAddress: shop.sellerAddress ?? "",
         placeOfIssue: shop.placeOfIssue ?? "",
+        accountantEmail: shop.accountantEmail ?? "",
         ksefTestMode: shop.ksefTestMode,
         readiness: buildKsefReadiness(shop)
       });
@@ -309,6 +312,7 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
           sellerName: input.sellerName?.trim() || shop.sellerName || "",
           sellerAddress: input.sellerAddress?.trim() || shop.sellerAddress || "",
           placeOfIssue: input.placeOfIssue?.trim() || shop.placeOfIssue || "",
+          accountantEmail: input.accountantEmail?.trim() || shop.accountantEmail || "",
           ksefTestMode: shop.ksefTestMode,
           readiness: buildKsefReadiness({
             ...shop,
@@ -336,6 +340,7 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
         sellerName: input.sellerName?.trim() || null,
         sellerAddress: input.sellerAddress?.trim() || null,
         placeOfIssue: input.placeOfIssue?.trim() || null,
+        accountantEmail: input.accountantEmail?.trim() || null,
         ...(typeof input.ksefTestMode === "boolean" ? { ksefTestMode: input.ksefTestMode } : {})
       }
     });
@@ -349,6 +354,7 @@ apiRouter.put("/ksef/settings", loadShop, async (req, res, next) => {
       sellerName: updated.sellerName ?? "",
       sellerAddress: updated.sellerAddress ?? "",
       placeOfIssue: updated.placeOfIssue ?? "",
+      accountantEmail: updated.accountantEmail ?? "",
       ksefTestMode: updated.ksefTestMode,
       readiness: buildKsefReadiness(updated)
     });

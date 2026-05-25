@@ -27,6 +27,7 @@ interface SettingsState {
   sellerName: string;
   sellerAddress: string;
   placeOfIssue: string;
+  accountantEmail: string;
   ksefTestMode: boolean;
 }
 
@@ -248,6 +249,7 @@ export function App() {
     sellerName: "",
     sellerAddress: "",
     placeOfIssue: "",
+    accountantEmail: "",
     ksefTestMode: true
   });
   const [saving, setSaving] = useState(false);
@@ -331,8 +333,10 @@ export function App() {
       sellerName: result.sellerName ?? "",
       sellerAddress: result.sellerAddress ?? "",
       placeOfIssue: result.placeOfIssue ?? "",
+      accountantEmail: result.accountantEmail ?? "",
       ksefTestMode: result.ksefTestMode ?? true
     });
+    setEmailRecipient((current) => current || result.accountantEmail || "");
     setKsefReadiness(result.readiness ?? null);
     setHasKsefToken(result.hasToken ?? false);
     setConnectionState(result.connected ? "connected" : "unknown");
@@ -521,8 +525,10 @@ export function App() {
         sellerName: result.sellerName ?? "",
         sellerAddress: result.sellerAddress ?? "",
         placeOfIssue: result.placeOfIssue ?? "",
+        accountantEmail: result.accountantEmail ?? "",
         ksefTestMode: result.ksefTestMode ?? true
       });
+      setEmailRecipient((current) => current || result.accountantEmail || "");
       setKsefReadiness(result.readiness ?? null);
       setHasKsefToken(result.hasToken ?? false);
       setConnectionState(result.connected ? "connected" : "unknown");
@@ -1353,6 +1359,16 @@ export function App() {
                               value={settings.placeOfIssue}
                               onChange={(placeOfIssue) => setSettings((current) => ({ ...current, placeOfIssue }))}
                               autoComplete="address-level2"
+                            />
+                            <TextField
+                              label={t("settings.accountantEmail")}
+                              value={settings.accountantEmail}
+                              onChange={(accountantEmail) => {
+                                setSettings((current) => ({ ...current, accountantEmail }));
+                                setEmailRecipient(accountantEmail);
+                              }}
+                              autoComplete="email"
+                              helpText={t("settings.accountantEmailHelp")}
                             />
                           </BlockStack>
                         </div>

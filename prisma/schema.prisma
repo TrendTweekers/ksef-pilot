@@ -20,6 +20,7 @@ model Shop {
   sellerName    String?
   sellerAddress String?
   placeOfIssue  String?
+  accountantEmail String?
   plan          String    @default("free")
   billingSubscriptionId String?
   billingStatus String?
