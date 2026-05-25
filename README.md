@@ -89,6 +89,14 @@ GET /readyz   - process + database readiness
 
 Railway uses `/readyz` as the deploy healthcheck so a release does not become healthy until Postgres is reachable after migrations.
 
+## Compliance Smoke Test
+
+```bash
+npm run test:fa3
+```
+
+This validates a domestic multi-rate FA(3) invoice with JST/GV buyer flags against the vendored official XSD. Run it after changing invoice mapping logic.
+
 ## Shopify Scopes
 
 The app requests the minimal MVP scopes:
