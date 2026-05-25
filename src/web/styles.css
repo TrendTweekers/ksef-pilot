@@ -529,6 +529,10 @@ body {
   min-width: 220px;
 }
 
+.email-field {
+  min-width: 280px;
+}
+
 .xml-preview {
   display: grid;
   gap: 12px;
@@ -587,7 +591,8 @@ body {
     flex-direction: column;
   }
 
-  .period-select {
+  .period-select,
+  .email-field {
     min-width: 100%;
   }
 }

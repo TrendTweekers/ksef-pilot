@@ -275,6 +275,8 @@ export function App() {
   const [bulkSubmittingInvoices, setBulkSubmittingInvoices] = useState(false);
   const [refreshingStatusInvoiceId, setRefreshingStatusInvoiceId] = useState<string | null>(null);
   const [correctingInvoiceId, setCorrectingInvoiceId] = useState<string | null>(null);
+  const [emailRecipient, setEmailRecipient] = useState("");
+  const [emailingInvoiceId, setEmailingInvoiceId] = useState<string | null>(null);
   const [queueStatus, setQueueStatus] = useState<QueueStatus>("all");
   const [queue, setQueue] = useState<QueueResponse | null>(null);
   const [queueLoading, setQueueLoading] = useState(false);
@@ -664,6 +666,31 @@ export function App() {
 
   function downloadInvoicePdf(invoice: InvoiceRow) {
     window.open(apiPath(`/api/invoices/${invoice.id}/pdf`), "_blank");
+  }
+
+  async function emailInvoice(invoice: InvoiceRow) {
+    setEmailingInvoiceId(invoice.id);
+    setInvoiceMessage("");
+    setInvoiceError("");
+
+    try {
+      const response = await fetch(apiPath(`/api/invoices/${invoice.id}/email`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailRecipient.trim() })
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? t("invoices.emailError"));
+      }
+
+      setInvoiceMessage(t("invoices.emailSent", { orderName: invoice.orderName, email: emailRecipient.trim() }));
+    } catch (error) {
+      setInvoiceError(error instanceof Error ? error.message : t("invoices.emailError"));
+    } finally {
+      setEmailingInvoiceId(null);
+    }
   }
 
   function downloadInvoiceZip() {
@@ -1588,18 +1615,29 @@ export function App() {
                         </Banner>
                       ) : null}
                       <InlineStack align="space-between" blockAlign="end" gap="300">
-                        <div className="period-select">
-                          <Select
-                            label={t("invoices.exportPeriod")}
-                            value={invoicePeriod}
-                            onChange={(value) => setInvoicePeriod(value as InvoicePeriod)}
-                            options={[
-                              { label: t("invoices.thisWeek"), value: "week" },
-                              { label: t("invoices.thisMonth"), value: "month" },
-                              { label: t("invoices.allDrafts"), value: "all" }
-                            ]}
-                          />
-                        </div>
+                        <InlineStack gap="300" blockAlign="end">
+                          <div className="period-select">
+                            <Select
+                              label={t("invoices.exportPeriod")}
+                              value={invoicePeriod}
+                              onChange={(value) => setInvoicePeriod(value as InvoicePeriod)}
+                              options={[
+                                { label: t("invoices.thisWeek"), value: "week" },
+                                { label: t("invoices.thisMonth"), value: "month" },
+                                { label: t("invoices.allDrafts"), value: "all" }
+                              ]}
+                            />
+                          </div>
+                          <div className="email-field">
+                            <TextField
+                              label={t("invoices.emailRecipient")}
+                              value={emailRecipient}
+                              onChange={setEmailRecipient}
+                              autoComplete="email"
+                              placeholder={t("invoices.emailPlaceholder")}
+                            />
+                          </div>
+                        </InlineStack>
                         <InlineStack gap="200">
                           <Button
                             disabled={!validationRequiredCount}
@@ -1762,6 +1800,13 @@ export function App() {
                                 ) : null}
                                 <Button onClick={() => previewInvoice(invoice)}>{t("invoices.previewXml")}</Button>
                                 <Button onClick={() => downloadInvoicePdf(invoice)}>{t("invoices.downloadPdf")}</Button>
+                                <Button
+                                  disabled={!emailRecipient.trim()}
+                                  loading={emailingInvoiceId === invoice.id}
+                                  onClick={() => emailInvoice(invoice)}
+                                >
+                                  {t("invoices.email")}
+                                </Button>
                                 <Button variant="primary" onClick={() => downloadInvoice(invoice)}>
                                   {t("invoices.downloadXml")}
                                 </Button>

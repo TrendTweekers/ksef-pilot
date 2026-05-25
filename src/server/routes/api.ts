@@ -21,6 +21,7 @@ import { buildInvoicePdf } from "../services/pdf.js";
 import { notifyTelegram } from "../services/telegram.js";
 import { getKsefWorkerStatus, runKsefWorkerOnce } from "../services/ksefWorker.js";
 import { coreWebhookTopics, listCoreWebhookStatus } from "../services/webhookSubscriptions.js";
+import { resendConfigured, sendEmail } from "../services/email.js";
 
 export const apiRouter = Router();
 
@@ -50,6 +51,10 @@ const generateInvoiceSchema = z.object({
 
 const correctionSchema = z.object({
   reason: z.string().min(3).max(180).optional()
+});
+
+const invoiceEmailSchema = z.object({
+  email: z.string().email()
 });
 
 const invoicePeriodSchema = z.enum(["week", "month", "all"]).default("month");
@@ -117,6 +122,15 @@ function invoicePdfFileName(orderName: string, invoiceId: string) {
 function csvCell(value: unknown) {
   const text = String(value ?? "");
   return `"${text.replace(/"/g, '""')}"`;
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function invoiceManifestRows(invoices: Array<{
@@ -1369,6 +1383,90 @@ apiRouter.get("/invoices/:invoiceId/upo.xml", loadShop, async (req, res, next) =
     res.setHeader("Content-Disposition", `attachment; filename="${invoiceFileName(invoice.orderName, invoice.id).replace(".xml", "-upo.xml")}"`);
     res.send(invoice.upoXml);
   } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post("/invoices/:invoiceId/email", loadShop, async (req, res, next) => {
+  try {
+    if (!resendConfigured()) {
+      res.status(503).json({ error: "Email delivery is not configured. Set RESEND_API_KEY in Railway first." });
+      return;
+    }
+
+    const shop = res.locals.shop!;
+    const invoiceId = String(req.params.invoiceId);
+    const input = invoiceEmailSchema.parse(req.body ?? {});
+    const invoice = await prisma.ksefInvoice.findFirst({
+      where: {
+        id: invoiceId,
+        shopId: shop.id
+      },
+      include: {
+        items: true,
+        shop: true
+      }
+    });
+
+    if (!invoice) {
+      res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
+
+    const pdf = await buildInvoicePdf(invoice);
+    const xmlFile = invoiceFileName(invoice.orderName, invoice.id);
+    const pdfFile = invoicePdfFileName(invoice.orderName, invoice.id);
+    const subject = `KSeF Pilot invoice ${invoice.orderName}`;
+    const safeOrderName = escapeHtml(invoice.orderName);
+    const safeBuyerName = escapeHtml(invoice.buyerName);
+    const safeNip = escapeHtml(invoice.nip);
+    const safeGross = escapeHtml(invoice.totalGross.toString());
+    const safeKsefNumber = escapeHtml(invoice.ksefNumber ?? "not assigned yet");
+    const text = [
+      `KSeF Pilot invoice packet for ${invoice.orderName}.`,
+      `Buyer: ${invoice.buyerName}`,
+      `NIP: ${invoice.nip}`,
+      `Gross: ${invoice.totalGross.toString()} PLN`,
+      invoice.ksefNumber ? `KSeF number: ${invoice.ksefNumber}` : "KSeF number: not assigned yet",
+      "",
+      "Attached: FA(3) XML and PDF preview."
+    ].join("\n");
+
+    const result = await sendEmail({
+      to: input.email,
+      subject,
+      text,
+      html: `<p>KSeF Pilot invoice packet for <strong>${safeOrderName}</strong>.</p>
+<p>Buyer: ${safeBuyerName}<br/>NIP: ${safeNip}<br/>Gross: ${safeGross} PLN<br/>KSeF number: ${safeKsefNumber}</p>
+<p>Attached: FA(3) XML and PDF preview.</p>`,
+      attachments: [
+        {
+          filename: xmlFile,
+          content: invoice.fa3Xml,
+          contentType: "application/xml"
+        },
+        {
+          filename: pdfFile,
+          content: pdf,
+          contentType: "application/pdf"
+        }
+      ]
+    });
+
+    await notifyTelegram(`KSeF Pilot email sent: ${shop.domain} ${invoice.orderName} -> ${input.email}`);
+
+    res.json({ sent: true, id: result.id });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: "Enter a valid email address." });
+      return;
+    }
+
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
     next(error);
   }
 });

@@ -96,6 +96,17 @@ ${APP_URL}/support
 
 Set `SUPPORT_EMAIL` in Railway before App Store submission. Defaults to `support@fakturaflow.pl`.
 
+## Optional Email Delivery
+
+Invoice rows can email the FA(3) XML and PDF preview through Resend. This is optional; downloads and ZIP exports work without it.
+
+```text
+RESEND_API_KEY=...
+RESEND_FROM_EMAIL=KSeF Pilot <support@fakturaflow.pl>
+```
+
+Use a verified Resend sender/domain for `RESEND_FROM_EMAIL`. If `RESEND_API_KEY` is missing, the email endpoint fails closed and the merchant sees a configuration message.
+
 ## Safe Dev Store Testing
 
 You can test the current MVP without sending anything real to KSeF:

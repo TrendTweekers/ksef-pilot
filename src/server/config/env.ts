@@ -24,7 +24,8 @@ const envSchema = z.object({
   SUPPORT_EMAIL: z.string().email().default("support@fakturaflow.pl"),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
-  RESEND_API_KEY: z.string().optional()
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM_EMAIL: z.string().default("KSeF Pilot <support@fakturaflow.pl>")
 });
 
 export const env = envSchema.parse(process.env);
