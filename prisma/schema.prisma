@@ -97,7 +97,12 @@ model KsefInvoice {
   ksefSessionRef String?
   status        String
   correctionOf  String?
+  currency      String        @default("PLN")
+  exchangeRate  Decimal?      @db.Decimal(14, 6)
+  exchangeRateDate DateTime?
+  exchangeRateTableNo String?
   totalGross    Decimal       @db.Decimal(12, 2)
+  totalGrossPln Decimal?      @db.Decimal(12, 2)
   retryCount    Int           @default(0)
   nextRetryAt   DateTime?
   lastError     String?
@@ -116,6 +121,17 @@ model KsefInvoice {
   @@index([shopId, orderId])
   @@index([status, nextRetryAt])
   @@index([shopId, fa3ValidationStatus])
+}
+
+model NbpExchangeRate {
+  id        String   @id @default(uuid())
+  currency  String
+  rateDate  DateTime
+  tableNo   String
+  rate      Decimal  @db.Decimal(14, 6)
+  fetchedAt DateTime @default(now())
+
+  @@unique([currency, rateDate])
 }
 
 model KsefSubmission {

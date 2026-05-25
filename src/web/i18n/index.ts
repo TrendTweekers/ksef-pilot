@@ -247,6 +247,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           description: "Pobierz pojedyncze XML albo tygodniowy/miesięczny ZIP dla księgowości.",
           safeTest:
             "Szkice to lokalne pliki XML FA(3). ZIP zawiera XML, podglądy PDF i manifest CSV do sprawdzenia przez księgowość przed wysyłką do KSeF.",
+          exchangeRate: "Kurs NBP: {{rate}} z dnia {{date}}, tabela {{table}}.",
           validatePassed: "{{orderName}} przeszło oficjalną walidację XSD FA(3).",
           validateFailed: "{{orderName}} nie przeszło oficjalnej walidacji XSD FA(3): {{count}} błędów.",
           bulkValidatePassed: "Walidacja zakończona: {{total}} faktur jest gotowych do następnego kroku.",
@@ -629,6 +630,7 @@ void i18n.use(LanguageDetector).use(initReactI18next).init({
           description: "Download XML one-by-one or export a weekly/monthly ZIP for accountant review.",
           safeTest:
             "Drafts are local FA(3) XML files. The ZIP includes XML, PDF previews, and a CSV manifest for accountant review before any KSeF submission flow is enabled.",
+          exchangeRate: "NBP rate: {{rate}} from {{date}}, table {{table}}.",
           validatePassed: "{{orderName}} passed official FA(3) XSD validation.",
           validateFailed: "{{orderName}} failed official FA(3) XSD validation with {{count}} issue(s).",
           bulkValidatePassed: "Validation finished: {{total}} invoice(s) are ready for the next step.",

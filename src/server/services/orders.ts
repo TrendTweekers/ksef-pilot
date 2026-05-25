@@ -773,7 +773,12 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
             nip: buyerNip,
             buyerName,
             fa3Xml,
+            currency: fa3.currency ?? "PLN",
             totalGross: fa3.amountGross,
+            totalGrossPln: fa3.currency === "PLN" || !fa3.currency ? fa3.amountGross : null,
+            exchangeRate: null,
+            exchangeRateDate: null,
+            exchangeRateTableNo: null,
             fa3ValidatedAt: null,
             fa3ValidationStatus: null,
             fa3ValidationError: null,
@@ -845,7 +850,9 @@ export async function generateDraftInvoiceForOrder(shop: Shop, input: { orderId:
       buyerName,
       fa3Xml,
       status: "draft",
+      currency: fa3.currency ?? "PLN",
       totalGross: fa3.amountGross,
+      totalGrossPln: fa3.currency === "PLN" || !fa3.currency ? fa3.amountGross : null,
       items: {
         create: fa3.lineItems.map((item) => ({
           name: item.name,

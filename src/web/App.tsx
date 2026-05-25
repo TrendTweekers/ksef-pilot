@@ -87,7 +87,12 @@ interface InvoiceRow {
   upoStatus?: string | null;
   upoFetchedAt?: string | null;
   hasUpo?: boolean;
+  currency: string;
+  exchangeRate?: string | number | null;
+  exchangeRateDate?: string | null;
+  exchangeRateTableNo?: string | null;
   totalGross: string | number;
+  totalGrossPln?: string | number | null;
   createdAt: string;
   itemCount: number;
   submission?: {
@@ -1751,8 +1756,17 @@ export function App() {
                                   {invoice.correctionOf ? <Badge tone="attention">{t("invoices.correction")}</Badge> : null}
                                 </InlineStack>
                                 <Text as="p" tone="subdued">
-                                  {invoice.buyerName} - NIP {invoice.nip} - {Number(invoice.totalGross).toFixed(2)} PLN
+                                  {invoice.buyerName} - NIP {invoice.nip} - {Number(invoice.totalGross).toFixed(2)} {invoice.currency ?? "PLN"}
                                 </Text>
+                                {invoice.exchangeRate && invoice.exchangeRateDate ? (
+                                  <Text as="p" tone="subdued">
+                                    {t("invoices.exchangeRate", {
+                                      rate: Number(invoice.exchangeRate).toFixed(6),
+                                      date: new Date(invoice.exchangeRateDate).toLocaleDateString(locale),
+                                      table: invoice.exchangeRateTableNo ?? "-"
+                                    })}
+                                  </Text>
+                                ) : null}
                                 {invoice.ksefNumber ? (
                                   <Text as="p" tone="success">
                                     {t("invoices.ksefApproved", { number: invoice.ksefNumber })}

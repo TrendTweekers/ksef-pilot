@@ -22,6 +22,7 @@ import { notifyTelegram } from "../services/telegram.js";
 import { getKsefWorkerStatus, runKsefWorkerOnce } from "../services/ksefWorker.js";
 import { coreWebhookTopics, listCoreWebhookStatus } from "../services/webhookSubscriptions.js";
 import { resendConfigured, sendEmail } from "../services/email.js";
+import { getNbpTableARateForPreviousBusinessDay } from "../services/nbp.js";
 
 export const apiRouter = Router();
 
@@ -66,6 +67,10 @@ const invoicePeriodSchema = z.enum(["week", "month", "all"]).default("month");
 const invoiceBulkSchema = z.object({
   period: invoicePeriodSchema.default("month"),
   limit: z.coerce.number().int().min(1).max(100).default(50)
+});
+const nbpRateQuerySchema = z.object({
+  currency: z.string().regex(/^[A-Za-z]{3}$/),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
 });
 
 const fa3LineSchema = z.object({
@@ -833,6 +838,28 @@ apiRouter.get("/billing", loadShop, async (_req, res, next) => {
   }
 });
 
+apiRouter.get("/nbp/rate", loadShop, async (req, res, next) => {
+  try {
+    const input = nbpRateQuerySchema.parse(req.query);
+    const date = input.date ? new Date(`${input.date}T00:00:00.000Z`) : new Date();
+    const rate = await getNbpTableARateForPreviousBusinessDay(input.currency, date);
+
+    if (!rate) {
+      res.status(404).json({ error: "No NBP Table A exchange rate was found for the requested currency/date window." });
+      return;
+    }
+
+    res.json(rate);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: "Currency must be a 3-letter ISO code and date must use YYYY-MM-DD." });
+      return;
+    }
+
+    next(error);
+  }
+});
+
 apiRouter.get("/review/status", loadShop, async (_req, res, next) => {
   try {
     const shop = res.locals.shop!;
@@ -994,7 +1021,12 @@ apiRouter.get("/invoices", loadShop, async (req, res, next) => {
           upoStatus: invoice.upoStatus,
           upoFetchedAt: invoice.upoFetchedAt,
           hasUpo: Boolean(invoice.upoXml),
+          currency: invoice.currency,
+          exchangeRate: invoice.exchangeRate,
+          exchangeRateDate: invoice.exchangeRateDate,
+          exchangeRateTableNo: invoice.exchangeRateTableNo,
           totalGross: invoice.totalGross,
+          totalGrossPln: invoice.totalGrossPln,
           createdAt: invoice.createdAt,
           submittedAt: invoice.submittedAt,
           itemCount: invoice.items.length,
