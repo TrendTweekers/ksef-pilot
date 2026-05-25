@@ -16,6 +16,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "test:fa3": "tsx scripts/fa3-smoke.ts",
+    "smoke:ksef": "tsx scripts/smoke-ksef-submit.ts",
     "lint": "eslint . --ext .ts,.tsx"
   },
   "dependencies": {

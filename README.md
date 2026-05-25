@@ -235,6 +235,29 @@ When autorun is enabled, the web process checks due retries and pending KSeF sta
 
 The app's KSeF Queue tab exposes an automation health panel with due retries, pending status refreshes, failed submissions, and whether `KSEF_WORKER_SECRET` is configured.
 
+## KSeF DEMO Smoke Test
+
+Use this only with a KSeF DEMO/TEST token. It seeds a disposable shop and invoice, validates the FA(3) XML, submits through the real `submitInvoiceToKsef` production path, polls for the KSeF reference, and deletes the test rows unless `--keep` is passed.
+
+Required local env:
+
+```text
+KSEF_LIVE_SUBMISSION_ENABLED=true
+KSEF_ENVIRONMENT=DEMO
+KSEF_API_BASE_URL=https://api-demo.ksef.mf.gov.pl
+KSEF_TEST_TOKEN=<put the DEMO token in .env, not chat>
+KSEF_TEST_NIP=5252763266
+ENCRYPTION_KEY=<base64 32-byte key>
+```
+
+Run:
+
+```bash
+npm run smoke:ksef
+```
+
+The script refuses to run if the target looks like production KSeF.
+
 ## Shopify Managed Pricing
 
 KSeF Pilot does not create charges inside the app. Merchants are sent to Shopify's Managed Pricing page, and the app only reads the resulting plan state from Shopify subscription webhooks.
